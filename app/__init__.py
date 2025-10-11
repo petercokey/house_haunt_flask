@@ -8,6 +8,7 @@ import os
 from app.routes import favorites
 
 
+
 # Initialize extensions globally
 db = SQLAlchemy()
 migrate = Migrate()
@@ -68,9 +69,15 @@ def create_app():
     app.register_blueprint(favorites.bp)
 
 
+
     # Simple test endpoint
     @app.route("/api/ping")
     def ping():
         return jsonify({"message": "pong"}), 200
+
+    @app.route('/')
+    def home():
+        return {"status": "House Haunt backend is live and running!"}, 200
+
 
     return app
