@@ -332,7 +332,3 @@ def get_trending_houses():
         "total_trending": len(results),
         "houses": results
     }), 200
-
-@app.route('/')
-def home():
-    return {"status": "House Haunt backend is live and running!"}, 200
