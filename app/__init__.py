@@ -6,7 +6,6 @@ import os
 from app.extensions import db, bcrypt, mail, login_manager
 from flask_migrate import Migrate
 
-
 def create_app():
     app = Flask(__name__)
 
