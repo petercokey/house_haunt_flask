@@ -18,6 +18,10 @@ mail = Mail()
 def create_app():
     app = Flask(__name__)
 
+    from flask_cors import CORS
+
+
+
     # Configuration
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "super-secret-key")
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
@@ -35,7 +39,15 @@ def create_app():
     )
 
     # Enable CORS for frontend API access
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+    CORS(app, resources={r"/*": {
+    "origins": [
+        "http://localhost:5173",
+        "https://house-haunt.netlify.app"
+    ]
+    }})
+
+
 
     # Initialize extensions
     db.init_app(app)
