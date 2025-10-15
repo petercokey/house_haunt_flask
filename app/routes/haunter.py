@@ -14,6 +14,7 @@ from app.utils.decorators import role_required
 from datetime import datetime
 from app.utils.notify import create_notification
 from sqlalchemy import or_
+from app.extensions import bcrypt
 
 bp = Blueprint("haunter", __name__, url_prefix="/api/haunter")
 
@@ -332,3 +333,38 @@ def get_trending_houses():
         "total_trending": len(results),
         "houses": results
     }), 200
+    
+# 🧩 Haunter Registration Route
+@bp.route("/register", methods=["POST"])
+def register_haunter():
+    """
+    Register a new haunter (house hunter).
+    Creates a user with role='haunter'.
+    """
+    data = request.get_json()
+    name = data.get("name")
+    email = data.get("email")
+    password = data.get("password")
+
+    if not all([name, email, password]):
+        return jsonify({"error": "Missing required fields"}), 400
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "Email already registered"}), 409
+
+    hashed_pw = bcrypt.generate_password_hash(password).decode("utf-8")
+
+    new_user = User(username=name, email=email, password=hashed_pw, role="haunter")
+    db.session.add(new_user)
+    db.session.commit()
+
+    # Optional: automatically create wallet for new haunter
+    wallet = Wallet(user_id=new_user.id, balance=0.0)
+    db.session.add(wallet)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Haunter registered successfully!",
+        "user_id": new_user.id,
+        "role": new_user.role
+    }), 201
