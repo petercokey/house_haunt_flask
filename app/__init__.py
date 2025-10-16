@@ -28,15 +28,17 @@ def create_app():
     # === Enable CORS for frontend access ===
     from flask_cors import CORS
 
-    CORS(app, resources={r"/*": {
-    "origins": [
-        "http://localhost:5173",
-        "https://house-haunt.netlify.app"
-    ],
-    "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    "allow_headers": ["Content-Type", "Authorization"],
-    "supports_credentials": True
-    }})
+    CORS(app, resources={
+    r"/api/*": {
+        "origins": [
+            "http://localhost:5173",
+            "https://house-haunt.netlify.app"
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+    })
 
     # === Initialize extensions ===
     db.init_app(app)
