@@ -1,49 +1,62 @@
 # app/routes/auth.py
 from flask import Blueprint, request, jsonify
-from werkzeug.security import generate_password_hash, check_password_hash
-from flask_login import login_user, logout_user, login_required
+from werkzeug.security import check_password_hash
+from flask_login import login_user, logout_user, login_required, current_user
+from sqlalchemy.exc import IntegrityError
 from app.models import User
 from app import db
-from flask_login import current_user
+from app.extensions import bcrypt
 
-
+# Create Blueprint
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
+
+# === Health Check ===
 @bp.route("/ping")
 def ping():
     return jsonify({"message": "auth blueprint active!"}), 200
 
-# Example route to verify it's working
 
-
-@bp.route("/signup", methods=["POST"])
-def signup():
+# === REGISTER ===
+@bp.route("/register", methods=["POST"])
+def register():
+    """Registers a new user (haunter or owner)."""
     data = request.get_json()
+
     username = data.get("username")
     email = data.get("email")
     password = data.get("password")
-    role = data.get("role")  # "owner" or "haunter"
+    role = data.get("role", "haunter")
 
-    if not all([username, email, password, role]):
-        return jsonify({"error": "Missing required fields"}), 400
+    if not all([username, email, password]):
+        return jsonify({"error": "All fields are required."}), 400
 
+    # Check if user already exists
     if User.query.filter_by(email=email).first():
-        return jsonify({"error": "Email already registered"}), 400
+        return jsonify({"error": "Email already exists."}), 400
 
-    user = User(
-        username=username,
-        email=email,
-        password=generate_password_hash(password),
-        role=role
-    )
+    # Hash password
+    hashed_pw = bcrypt.generate_password_hash(password).decode("utf-8")
+
+    # Create and store user
+    user = User(username=username, email=email, password=hashed_pw, role=role)
     db.session.add(user)
     db.session.commit()
 
-    return jsonify({"message": "Signup successful"}), 201
+    return jsonify({
+        "message": "Registration successful",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role
+        }
+    }), 201
 
 
-
+# === LOGIN ===
 @bp.route("/login", methods=["POST"])
 def login():
+    """Logs in an existing user."""
     data = request.get_json()
     email = data.get("email")
     password = data.get("password")
@@ -55,7 +68,7 @@ def login():
     if not user or not check_password_hash(user.password, password):
         return jsonify({"error": "Invalid credentials"}), 401
 
-    login_user(user)  # Flask-Login stores user ID in session cookie
+    login_user(user)  # Stores user in session
 
     return jsonify({
         "message": "Login successful",
@@ -67,15 +80,21 @@ def login():
         }
     }), 200
 
+
+# === LOGOUT ===
 @bp.route("/logout", methods=["POST"])
 @login_required
 def logout():
+    """Logs out the current user."""
     logout_user()
     return jsonify({"message": "Logout successful"}), 200
 
+
+# === CURRENT USER ===
 @bp.route("/me", methods=["GET"])
 @login_required
 def get_current_user():
+    """Fetch the currently logged-in user."""
     return jsonify({
         "id": current_user.id,
         "username": current_user.username,
@@ -84,8 +103,11 @@ def get_current_user():
         "credits": current_user.credits
     }), 200
 
+
+# === ADMIN LOGIN ===
 @bp.route("/admin/login", methods=["POST"])
 def admin_login():
+    """Logs in an admin user."""
     data = request.get_json()
     email = data.get("email")
     password = data.get("password")
@@ -99,4 +121,7 @@ def admin_login():
         return jsonify({"error": "Access denied: Not an admin"}), 403
 
     login_user(user)
-    return jsonify({"message": "Admin logged in successfully", "user": {"id": user.id, "email": user.email}}), 200
+    return jsonify({
+        "message": "Admin logged in successfully",
+        "user": {"id": user.id, "email": user.email}
+    }), 200
