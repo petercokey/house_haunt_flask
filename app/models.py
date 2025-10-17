@@ -123,10 +123,63 @@ class Review(db.Model):
 
 # ==========================================================
 # 🔹 KYC MODEL
-# ===============================
+# ==========================================================
+class KYC(db.Model):
+    __tablename__ = "kyc"
 
+    id = db.Column(db.Integer, primary_key=True)
+    agent_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    id_type = db.Column(db.String(50))
+    id_number = db.Column(db.String(100))
+    document_image = db.Column(db.String(255))
+    status = db.Column(db.String(20), default="pending")
+    submitted_at = db.Column(db.DateTime, default=db.func.now())
+    is_downloaded = db.Column(db.Boolean, default=False)
+    download_count = db.Column(db.Integer, default=0)
+    last_downloaded_at = db.Column(db.DateTime, default=None)
+    is_reverified = db.Column(db.Boolean, default=False)
+    reverified_at = db.Column(db.DateTime, default=None)
+    reviewer_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    file_path = db.Column(db.String(255), nullable=False)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    reviewed_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    admin_note = db.Column(db.Text, nullable=True)
+
+
+# ==========================================================
+# 🔹 NOTIFICATION MODEL
+# ==========================================================
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    message = db.Column(db.String(255), nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    read_at = db.Column(db.DateTime, nullable=True)
+
+    def __repr__(self):
+        return f"<Notification user={self.user_id} message='{self.message}'>"
+
+
+# ==========================================================
+# 🔹 WALLET MODEL
+# ==========================================================
 class Wallet(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), unique=True)
     balance = db.Column(db.Float, default=0.0)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ==========================================================
+# 🔹 TRANSACTION MODEL
+# ==========================================================
+class Transaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    amount = db.Column(db.Float, nullable=False)
+    txn_type = db.Column(db.String(20))  # topup / deduction
+    description = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
