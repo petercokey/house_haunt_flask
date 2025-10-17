@@ -3,12 +3,9 @@ from datetime import datetime
 from flask_login import UserMixin
 
 
-
-
-# your models follow...
-
-
-# 🔹 Unified User model with role differentiation
+# ==========================================================
+# 🔹 USER MODEL
+# ==========================================================
 class User(UserMixin, db.Model):
     __tablename__ = "user"
 
@@ -23,24 +20,28 @@ class User(UserMixin, db.Model):
     kyc_document = db.Column(db.String(255))
     is_admin = db.Column(db.Boolean, default=False)
 
+    # Relationship: Agent owns many houses
     houses = db.relationship("House", backref="agent", lazy=True)
 
-    # ✅ Explicit relationships to Review
+    # ✅ FIXED: Explicit, unambiguous relationships to Review
     reviews_written = db.relationship(
         "Review",
-        foreign_keys="Review.haunter_id",
+        foreign_keys=[lambda: Review.haunter_id],
         backref="haunter",
         lazy=True
     )
 
     reviews_received = db.relationship(
         "Review",
-        foreign_keys="Review.agent_id",
+        foreign_keys=[lambda: Review.agent_id],
         backref="agent",
         lazy=True
     )
 
-# 🔹 Houses uploaded by agents
+
+# ==========================================================
+# 🔹 HOUSE MODEL
+# ==========================================================
 class House(db.Model):
     __tablename__ = "house"
 
@@ -54,7 +55,10 @@ class House(db.Model):
     image_path = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# 🔹 Contact requests from haunters to agents
+
+# ==========================================================
+# 🔹 CONTACT REQUEST MODEL
+# ==========================================================
 class ContactRequest(db.Model):
     __tablename__ = "contact_request"
 
@@ -65,11 +69,13 @@ class ContactRequest(db.Model):
     status = db.Column(db.String(20), default="pending")
     credits_deducted = db.Column(db.Integer, default=2)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
     def __repr__(self):
         return f"<ContactRequest Haunter={self.haunter_id} Agent={self.agent_id} -{self.credits_deducted}cr>"
 
+
 # ==========================================================
-# ⭐ FAVORITES MODEL
+# 🔹 FAVORITE MODEL
 # ==========================================================
 class Favorite(db.Model):
     __tablename__ = "favorites"
@@ -79,7 +85,6 @@ class Favorite(db.Model):
     house_id = db.Column(db.Integer, db.ForeignKey("house.id"), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Relationships (optional but helpful)
     haunter = db.relationship("User", backref="favorites", lazy=True)
     house = db.relationship("House", backref="favorited_by", lazy=True)
 
@@ -87,7 +92,9 @@ class Favorite(db.Model):
         return f"<Favorite Haunter={self.haunter_id} House={self.house_id}>"
 
 
-# 🔹 Credit purchases by haunters (optional)
+# ==========================================================
+# 🔹 PURCHASE CREDIT MODEL
+# ==========================================================
 class PurchaseCredit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     haunter_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
@@ -98,7 +105,9 @@ class PurchaseCredit(db.Model):
         return f"<PurchaseCredit {self.haunter_id} +{self.amount}>"
 
 
-# 🔹 Reviews from haunters about agents
+# ==========================================================
+# 🔹 REVIEW MODEL
+# ==========================================================
 class Review(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agent_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
@@ -112,54 +121,6 @@ class Review(db.Model):
         return f"<Review {self.id} Agent={self.agent_id} Haunter={self.haunter_id}>"
 
 
-class KYC(db.Model):
-    __tablename__ = "kyc"
-
-    id = db.Column(db.Integer, primary_key=True)
-    agent_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    id_type = db.Column(db.String(50))        # e.g. "National ID", "Driver’s License"
-    id_number = db.Column(db.String(100))
-    document_image = db.Column(db.String(255)) # path or URL to uploaded doc
-    status = db.Column(db.String(20), default="pending")  # pending, verified, rejected
-    submitted_at = db.Column(db.DateTime, default=db.func.now())
-    is_downloaded = db.Column(db.Boolean, default=False)
-    download_count = db.Column(db.Integer, default=0)
-    last_downloaded_at = db.Column(db.DateTime, default=None)
-    is_reverified = db.Column(db.Boolean, default=False)
-    reverified_at = db.Column(db.DateTime, default=None)
-    reviewer_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
-    file_path = db.Column(db.String(255), nullable=False)
-    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
-    reviewed_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
-    reviewed_at = db.Column(db.DateTime, nullable=True)
-    admin_note = db.Column(db.Text, nullable=True)
-
-class Notification(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    message = db.Column(db.String(255), nullable=False)
-    is_read = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    read_at = db.Column(db.DateTime, nullable=True)
-
-    def __repr__(self):
-        return f"<Notification user={self.user_id} message='{self.message}'>"
-
-    
-
-
-class Wallet(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), unique=True)
-    balance = db.Column(db.Float, default=0.0)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-
-class Transaction(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    amount = db.Column(db.Float, nullable=False)
-    txn_type = db.Column(db.String(20))  # topup / deduction
-    description = db.Column(db.String(255))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
+# ==========================================================
+# 🔹 KYC MODEL
+# ===============================
