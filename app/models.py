@@ -1,9 +1,9 @@
-from flask_sqlalchemy import SQLAlchemy
+from app.extensions import db
 from datetime import datetime
 from flask_login import UserMixin
 
-# don't import db directly from app here
-db = SQLAlchemy()
+
+
 
 # your models follow...
 
@@ -16,16 +16,29 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(20), nullable=False)  # "agent" or "haunter"
+    role = db.Column(db.String(20), default="haunter")  # haunter / agent / admin
     credits = db.Column(db.Integer, default=0)
     kyc_verified = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    kyc_document = db.Column(db.String(255))  # path or URL of verified KYC document
-    role = db.Column(db.String(20), default="haunter")  # haunter / agent / admin
-    is_admin = db.Column(db.Boolean, default=False) 
+    kyc_document = db.Column(db.String(255))
+    is_admin = db.Column(db.Boolean, default=False)
 
     houses = db.relationship("House", backref="agent", lazy=True)
-    reviews = db.relationship("Review", backref="agent_reviewed", lazy=True)
+
+    # ✅ Explicit relationships to Review
+    reviews_written = db.relationship(
+        "Review",
+        foreign_keys="Review.haunter_id",
+        backref="haunter",
+        lazy=True
+    )
+
+    reviews_received = db.relationship(
+        "Review",
+        foreign_keys="Review.agent_id",
+        backref="agent",
+        lazy=True
+    )
 
 # 🔹 Houses uploaded by agents
 class House(db.Model):
@@ -93,12 +106,10 @@ class Review(db.Model):
     rating = db.Column(db.Float, nullable=False)
     comment = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # 🔹 New field for moderation
-    is_flagged = db.Column(db.Boolean, default=False)  # If flagged by admin or system
+    is_flagged = db.Column(db.Boolean, default=False)
 
     def __repr__(self):
-        return f"<Review {self.id} - Agent {self.agent_id} - Flagged {self.is_flagged}>"
+        return f"<Review {self.id} Agent={self.agent_id} Haunter={self.haunter_id}>"
 
 
 class KYC(db.Model):
