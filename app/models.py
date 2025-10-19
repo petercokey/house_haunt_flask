@@ -24,19 +24,21 @@ class User(UserMixin, db.Model):
     houses = db.relationship("House", backref="agent", lazy=True)
 
     # ✅ FIXED: Explicit, unambiguous relationships to Review
+    # ✅ Corrected relationships
     reviews_written = db.relationship(
         "Review",
-        foreign_keys=[lambda: Review.haunter_id],
+        foreign_keys="Review.haunter_id",
         backref="haunter",
         lazy=True
     )
 
     reviews_received = db.relationship(
         "Review",
-        foreign_keys=[lambda: Review.agent_id],
+        foreign_keys="Review.agent_id",
         backref="agent",
         lazy=True
     )
+
 
 
 # ==========================================================
