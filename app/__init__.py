@@ -68,7 +68,7 @@ def create_app():
     # === Register Blueprints ===
     from app.routes import (
         auth, contact, wallet, review, agent, haunter, kyc,
-        dashboard, notifications, favorites
+        dashboard, notifications, favorites, seed
     )
 
     app.register_blueprint(auth.bp)
@@ -81,6 +81,7 @@ def create_app():
     app.register_blueprint(dashboard.bp)
     app.register_blueprint(notifications.bp)
     app.register_blueprint(favorites.bp)
+    app.register_blueprint(seed.bp)
 
     # === Basic Health Routes ===
     @app.route("/api/ping")
