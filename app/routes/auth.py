@@ -1,6 +1,5 @@
-# app/routes/auth.py
 from flask import Blueprint, request, jsonify
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash  # (still imported, but no longer used)
 from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy.exc import IntegrityError
 from app.models import User
@@ -65,7 +64,9 @@ def login():
         return jsonify({"error": "Missing email or password"}), 400
 
     user = User.query.filter_by(email=email).first()
-    if not user or not check_password_hash(user.password, password):
+
+    # ✅ FIX: use bcrypt to verify the password (not werkzeug)
+    if not user or not bcrypt.check_password_hash(user.password, password):
         return jsonify({"error": "Invalid credentials"}), 401
 
     login_user(user)  # Stores user in session
@@ -114,7 +115,8 @@ def admin_login():
 
     user = User.query.filter_by(email=email).first()
 
-    if not user or not check_password_hash(user.password, password):
+    # ✅ FIX: use bcrypt here too
+    if not user or not bcrypt.check_password_hash(user.password, password):
         return jsonify({"error": "Invalid credentials"}), 401
 
     if not user.is_admin:
@@ -125,3 +127,4 @@ def admin_login():
         "message": "Admin logged in successfully",
         "user": {"id": user.id, "email": user.email}
     }), 200
+
