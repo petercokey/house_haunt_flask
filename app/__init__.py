@@ -40,6 +40,13 @@ def create_app():
     }
     })
 
+    # Allow secure cookies across domains (Render + Netlify use HTTPS)
+    app.config.update(
+    SESSION_COOKIE_SAMESITE="None",
+    SESSION_COOKIE_SECURE=True
+    )
+
+
     # === Initialize extensions ===
     db.init_app(app)
     bcrypt.init_app(app)
