@@ -42,7 +42,7 @@ def seed_data():
             description="Nice 2-bedroom apartment in Ikeja",
             location="Ikeja",
             price=150000,
-            owner_id=user2.id
+            agent_id=user2.id   # ✅ make sure to use agent_id not owner_id
         )
 
         house2 = House(
@@ -50,17 +50,26 @@ def seed_data():
             description="Luxury villa with ocean view",
             location="Lekki",
             price=500000,
-            owner_id=user2.id
+            agent_id=user2.id
         )
 
         db.session.add_all([house1, house2])
         db.session.commit()
 
-        review1 = Review(user_id=user1.id, house_id=house1.id, rating=4, comment="Nice place!")
+        review1 = Review(
+            haunter_id=user1.id,
+            agent_id=user2.id,
+            rating=4,
+            comment="Nice place!"
+        )
+
         db.session.add(review1)
         db.session.commit()
 
         return jsonify({"message": "✅ Dummy data seeded successfully!"}), 201
 
     except Exception as e:
+        import traceback
+        print("❌ ERROR seeding data:", e)
+        traceback.print_exc()   # 👈 this line prints the full error to Render logs
         return jsonify({"error": str(e)}), 500
