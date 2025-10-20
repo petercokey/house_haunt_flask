@@ -21,31 +21,31 @@ def create_app():
         MAIL_SERVER="smtp.gmail.com",
         MAIL_PORT=587,
         MAIL_USE_TLS=True,
-        MAIL_USERNAME=os.getenv("MAIL_USERNAME"),  # Gmail address
-        MAIL_PASSWORD=os.getenv("MAIL_PASSWORD"),  # App password
+        MAIL_USERNAME=os.getenv("MAIL_USERNAME"),
+        MAIL_PASSWORD=os.getenv("MAIL_PASSWORD"),
+    )
+
+    # === Secure Session Cookies for Cross-Domain Login (Render + Netlify) ===
+    app.config.update(
+        SESSION_COOKIE_SAMESITE="None",
+        SESSION_COOKIE_SECURE=True,
+        SESSION_COOKIE_HTTPONLY=True,  # prevents client-side JS from accessing it
+        REMEMBER_COOKIE_SAMESITE="None",
+        REMEMBER_COOKIE_SECURE=True
     )
 
     # === Enable CORS for frontend access ===
-    from flask_cors import CORS
-
     CORS(app, resources={
-    r"/api/*": {
-        "origins": [
-            "http://localhost:5173",
-            "https://house-haunt.netlify.app"
-        ],
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": True
-    }
+        r"/api/*": {
+            "origins": [
+                "http://localhost:5173",          # local dev
+                "https://house-haunt.netlify.app"  # deployed frontend
+            ],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": True
+        }
     })
-
-    # Allow secure cookies across domains (Render + Netlify use HTTPS)
-    app.config.update(
-    SESSION_COOKIE_SAMESITE="None",
-    SESSION_COOKIE_SECURE=True
-    )
-
 
     # === Initialize extensions ===
     db.init_app(app)
