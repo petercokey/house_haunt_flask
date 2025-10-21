@@ -1,10 +1,9 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 import os
-
-# Import initialized extensions from app/extensions.py
-from app.extensions import db, bcrypt, mail, login_manager
+from app.extensions import db, bcrypt, mail, login_manager, JWTManager
 from flask_migrate import Migrate
+
 
 def create_app():
     app = Flask(__name__)
@@ -16,6 +15,22 @@ def create_app():
     )
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+    # === JWT Configuration (Cookie-Based Auth for Render + Netlify) ===
+    app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "super-secret-jwt-key")
+
+    # ✅ Accept both cookies and headers (for flexibility)
+    app.config["JWT_TOKEN_LOCATION"] = ["cookies", "headers"]
+
+    # ✅ Define cookie names & secure properties
+    app.config["JWT_ACCESS_COOKIE_NAME"] = "access_token_cookie"
+    app.config["JWT_REFRESH_COOKIE_NAME"] = "refresh_token_cookie"
+    app.config["JWT_COOKIE_SECURE"] = True               # Required for HTTPS
+    app.config["JWT_COOKIE_SAMESITE"] = "None"           # Allows cross-site cookies (Netlify → Render)
+    app.config["JWT_COOKIE_HTTPONLY"] = True             # Protects against XSS
+    app.config["JWT_COOKIE_CSRF_PROTECT"] = False        # Disable CSRF for now (since using CORS safely)
+
+    jwt = JWTManager(app)
+
     # === Mail Configuration ===
     app.config.update(
         MAIL_SERVER="smtp.gmail.com",
@@ -25,34 +40,36 @@ def create_app():
         MAIL_PASSWORD=os.getenv("MAIL_PASSWORD"),
     )
 
-    # === Secure Session Cookies for Cross-Domain Login (Render + Netlify) ===
+    # === Secure Session Cookies ===
     app.config.update(
         SESSION_COOKIE_SAMESITE="None",
         SESSION_COOKIE_SECURE=True,
-        SESSION_COOKIE_HTTPONLY=True,  # prevents client-side JS from accessing it
+        SESSION_COOKIE_HTTPONLY=True,
         REMEMBER_COOKIE_SAMESITE="None",
-        REMEMBER_COOKIE_SECURE=True
+        REMEMBER_COOKIE_SECURE=True,
     )
 
-    # === Enable CORS for frontend access ===
-    CORS(app, resources={
-        r"/api/*": {
-            "origins": [
-                "http://localhost:5173",          # local dev
-                "https://house-haunt.netlify.app"  # deployed frontend
-            ],
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"],
-            "supports_credentials": True
-        }
-    })
+    # === CORS Configuration ===
+    CORS(
+        app,
+        supports_credentials=True,
+        resources={
+            r"/api/*": {
+                "origins": [
+                    "http://localhost:5173",
+                    "https://house-haunt.netlify.app",
+                ],
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "allow_headers": ["Content-Type", "Authorization"],
+            }
+        },
+    )
 
-    # === Initialize extensions ===
+    # === Initialize Extensions ===
     db.init_app(app)
     bcrypt.init_app(app)
     mail.init_app(app)
     login_manager.init_app(app)
-
     migrate = Migrate(app, db)
 
     # === Flask-Login Configuration ===
@@ -67,8 +84,17 @@ def create_app():
 
     # === Register Blueprints ===
     from app.routes import (
-        auth, contact, wallet, review, agent, haunter, kyc,
-        dashboard, notifications, favorites, seed
+        auth,
+        contact,
+        wallet,
+        review,
+        agent,
+        haunter,
+        kyc,
+        dashboard,
+        notifications,
+        favorites,
+        seed,
     )
 
     app.register_blueprint(auth.bp)
@@ -83,7 +109,7 @@ def create_app():
     app.register_blueprint(favorites.bp)
     app.register_blueprint(seed.bp)
 
-    # === Basic Health Routes ===
+    # === Basic Health Check Routes ===
     @app.route("/api/ping")
     def ping():
         return jsonify({"message": "pong"}), 200
