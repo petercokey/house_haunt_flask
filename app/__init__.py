@@ -1,7 +1,10 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
 import os
-from app.extensions import db, bcrypt, mail, login_manager, jwt
+
+# Import initialized extensions
+from app.extensions import db, bcrypt, mail, login_manager
 from flask_migrate import Migrate
 
 
@@ -15,22 +18,16 @@ def create_app():
     )
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-    # === JWT Configuration (Cookie-Based Auth for Render + Netlify) ===
+    # === JWT Configuration ===
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "super-secret-jwt-key")
-
-    # ✅ Accept both cookies and headers (for flexibility)
-    app.config["JWT_TOKEN_LOCATION"] = ["cookies", "headers"]
-
-    # ✅ Define cookie names & secure properties
+    app.config["JWT_TOKEN_LOCATION"] = ["cookies"]
     app.config["JWT_ACCESS_COOKIE_NAME"] = "access_token_cookie"
-    app.config["JWT_REFRESH_COOKIE_NAME"] = "refresh_token_cookie"
-    app.config["JWT_COOKIE_SECURE"] = True               # Required for HTTPS
-    app.config["JWT_COOKIE_SAMESITE"] = "None"           # Allows cross-site cookies (Netlify → Render)
-    app.config["JWT_COOKIE_HTTPONLY"] = True             # Protects against XSS
-    app.config["JWT_COOKIE_CSRF_PROTECT"] = False        # Disable CSRF for now (since using CORS safely)
+    app.config["JWT_COOKIE_SECURE"] = True           # required for HTTPS (Render)
+    app.config["JWT_COOKIE_SAMESITE"] = "None"       # allows Netlify + Render cross-site cookies
+    app.config["JWT_COOKIE_HTTPONLY"] = True         # secure — JS can’t read cookie
+    app.config["JWT_COOKIE_CSRF_PROTECT"] = False    # disable CSRF for simplicity (can enable later)
 
-    jwt.init_app(app)
-
+    jwt = JWTManager(app)
 
     # === Mail Configuration ===
     app.config.update(
@@ -66,7 +63,7 @@ def create_app():
         },
     )
 
-    # === Initialize Extensions ===
+    # === Initialize extensions ===
     db.init_app(app)
     bcrypt.init_app(app)
     mail.init_app(app)
@@ -85,17 +82,8 @@ def create_app():
 
     # === Register Blueprints ===
     from app.routes import (
-        auth,
-        contact,
-        wallet,
-        review,
-        agent,
-        haunter,
-        kyc,
-        dashboard,
-        notifications,
-        favorites,
-        seed,
+        auth, contact, wallet, review, agent, haunter, kyc,
+        dashboard, notifications, favorites, seed
     )
 
     app.register_blueprint(auth.bp)
@@ -110,7 +98,7 @@ def create_app():
     app.register_blueprint(favorites.bp)
     app.register_blueprint(seed.bp)
 
-    # === Basic Health Check Routes ===
+    # === Health Check Routes ===
     @app.route("/api/ping")
     def ping():
         return jsonify({"message": "pong"}), 200

@@ -1,13 +1,52 @@
 from flask import Blueprint, request, jsonify
-from werkzeug.security import check_password_hash  # (still imported, but no longer used)
+from werkzeug.security import check_password_hash
 from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy.exc import IntegrityError
 from app.models import User
 from app import db
 from app.extensions import bcrypt
+from flask_jwt_extended import (
+    create_access_token,
+    jwt_required,
+    get_jwt_identity,
+    verify_jwt_in_request,
+)
+from functools import wraps
+from flask_jwt_extended import create_access_token, set_access_cookies
 
 # Create Blueprint
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
+
+
+# === Hybrid Auth Helper (Session or JWT) ===
+def jwt_or_login_required(role=None):
+    """
+    Allow access if user is logged in (Flask-Login)
+    OR provides a valid JWT.
+    Optionally checks role.
+    """
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            # Case 1: Flask-Login session
+            if current_user and not current_user.is_anonymous:
+                if role and current_user.role != role:
+                    return jsonify({"error": "Access denied: wrong role"}), 403
+                return fn(*args, **kwargs)
+
+            # Case 2: JWT token
+            try:
+                verify_jwt_in_request()
+                identity = get_jwt_identity()
+                if role and identity.get("role") != role:
+                    return jsonify({"error": "Access denied: wrong role"}), 403
+            except Exception:
+                return jsonify({"error": "Unauthorized"}), 401
+
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
 
 # === Health Check ===
 @bp.route("/ping")
@@ -29,14 +68,11 @@ def register():
     if not all([username, email, password]):
         return jsonify({"error": "All fields are required."}), 400
 
-    # Check if user already exists
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "Email already exists."}), 400
 
-    # Hash password
     hashed_pw = bcrypt.generate_password_hash(password).decode("utf-8")
 
-    # Create and store user
     user = User(username=username, email=email, password=hashed_pw, role=role)
     db.session.add(user)
     db.session.commit()
@@ -53,9 +89,11 @@ def register():
 
 
 # === LOGIN ===
+
+
 @bp.route("/login", methods=["POST"])
 def login():
-    """Logs in an existing user."""
+    """Logs in user and sets secure JWT cookie."""
     data = request.get_json()
     email = data.get("email")
     password = data.get("password")
@@ -64,22 +102,26 @@ def login():
         return jsonify({"error": "Missing email or password"}), 400
 
     user = User.query.filter_by(email=email).first()
-
-    # ✅ FIX: use bcrypt to verify the password (not werkzeug)
-    if not user or not bcrypt.check_password_hash(user.password, password):
+    if not user or not check_password_hash(user.password, password):
         return jsonify({"error": "Invalid credentials"}), 401
 
-    login_user(user)  # Stores user in session
+    # Flask-Login session
+    login_user(user)
 
-    return jsonify({
+    # Create JWT token
+    access_token = create_access_token(identity={"id": user.id, "role": user.role})
+
+    # Set JWT cookie
+    response = jsonify({
         "message": "Login successful",
         "user": {
             "id": user.id,
             "username": user.username,
             "role": user.role,
-            "credits": user.credits
         }
-    }), 200
+    })
+    set_access_cookies(response, access_token)
+    return response, 200
 
 
 # === LOGOUT ===
@@ -91,17 +133,27 @@ def logout():
     return jsonify({"message": "Logout successful"}), 200
 
 
-# === CURRENT USER ===
+# === CURRENT USER (works with JWT or session) ===
 @bp.route("/me", methods=["GET"])
-@login_required
+@jwt_or_login_required()
 def get_current_user():
-    """Fetch the currently logged-in user."""
+    """Fetch the currently logged-in user via Flask-Login or JWT."""
+    try:
+        if current_user and not current_user.is_anonymous:
+            user = current_user
+        else:
+            verify_jwt_in_request()
+            identity = get_jwt_identity()
+            user = User.query.get(identity["id"])
+    except Exception:
+        return jsonify({"error": "Unauthorized"}), 401
+
     return jsonify({
-        "id": current_user.id,
-        "username": current_user.username,
-        "email": current_user.email,
-        "role": current_user.role,
-        "credits": current_user.credits
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "role": user.role,
+        "credits": user.credits
     }), 200
 
 
@@ -115,16 +167,17 @@ def admin_login():
 
     user = User.query.filter_by(email=email).first()
 
-    # ✅ FIX: use bcrypt here too
-    if not user or not bcrypt.check_password_hash(user.password, password):
+    if not user or not check_password_hash(user.password, password):
         return jsonify({"error": "Invalid credentials"}), 401
 
     if not user.is_admin:
         return jsonify({"error": "Access denied: Not an admin"}), 403
 
     login_user(user)
+    token = create_access_token(identity={"id": user.id, "role": user.role})
+
     return jsonify({
         "message": "Admin logged in successfully",
+        "token": token,
         "user": {"id": user.id, "email": user.email}
     }), 200
-
