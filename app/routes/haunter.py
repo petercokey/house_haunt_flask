@@ -15,6 +15,7 @@ from datetime import datetime
 from app.utils.notify import create_notification
 from sqlalchemy import or_
 from app.extensions import bcrypt
+from app.utils.auth_helpers import jwt_or_login_required
 
 bp = Blueprint("haunter", __name__, url_prefix="/api/haunter")
 
@@ -27,8 +28,7 @@ def ping():
 
 # 🔹 Get all approved houses (with optional search & filters)
 @bp.route("/houses", methods=["GET"])
-@login_required
-@role_required("haunter")
+@jwt_or_login_required(role="haunter")
 def get_all_houses():
     """
     Return all approved houses available for haunters,
@@ -99,8 +99,7 @@ def get_all_houses():
 
 # 🔹 Get details of a specific house
 @bp.route("/house/<int:house_id>", methods=["GET"])
-@login_required
-@role_required("haunter")
+@jwt_or_login_required(role="haunter")
 def get_house_details(house_id):
     """Return detailed info of a specific approved house."""
     house = House.query.filter_by(id=house_id, status="approved").first()
@@ -126,8 +125,7 @@ def get_house_details(house_id):
 
 # 🔹 Haunter requests contact info (deducts credits)
 @bp.route("/contact-agent/<int:house_id>", methods=["POST"])
-@login_required
-@role_required("haunter")
+@jwt_or_login_required(role="haunter")
 def contact_agent(house_id):
     """Allow haunter to request an agent’s contact info using wallet credits."""
     house = House.query.filter_by(id=house_id, status="approved").first()
@@ -170,8 +168,7 @@ def contact_agent(house_id):
 
 # 🔹 Favorite / Unfavorite a house
 @bp.route("/favorite/<int:house_id>", methods=["POST"])
-@login_required
-@role_required("haunter")
+@jwt_or_login_required(role="haunter")
 def toggle_favorite(house_id):
     """Add or remove a house from haunter's favorites."""
     house = House.query.get(house_id)
@@ -193,8 +190,7 @@ def toggle_favorite(house_id):
 
 # 🔹 View all favorites
 @bp.route("/favorites", methods=["GET"])
-@login_required
-@role_required("haunter")
+@jwt_or_login_required(role="haunter")
 def get_favorites():
     """Return all favorite houses of the logged-in haunter."""
     favorites = Favorite.query.filter_by(haunter_id=current_user.id).all()
@@ -217,8 +213,7 @@ def get_favorites():
 
 # 🔹 Smart Recommendations System
 @bp.route("/recommendations", methods=["GET"])
-@login_required
-@role_required("haunter")
+@jwt_or_login_required(role="haunter")
 def get_recommendations():
     """
     Recommend houses based on the haunter’s favorites and contact history.
@@ -273,8 +268,7 @@ def get_recommendations():
 
 # 🔹 Trending Houses (Most Popular)
 @bp.route("/trending", methods=["GET"])
-@login_required
-@role_required("haunter")
+@jwt_or_login_required(role="haunter")
 def get_trending_houses():
     """
     Return top trending houses based on number of favorites and contact requests.
@@ -333,8 +327,8 @@ def get_trending_houses():
         "total_trending": len(results),
         "houses": results
     }), 200
-    
-# 🧩 Haunter Registration Route
+
+
 @bp.route("/register", methods=["POST"])
 def register_haunter():
     """
