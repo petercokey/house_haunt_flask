@@ -1,7 +1,7 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 import os
-from app.extensions import db, bcrypt, mail, login_manager, JWTManager
+from app.extensions import db, bcrypt, mail, login_manager, jwt
 from flask_migrate import Migrate
 
 
@@ -29,7 +29,8 @@ def create_app():
     app.config["JWT_COOKIE_HTTPONLY"] = True             # Protects against XSS
     app.config["JWT_COOKIE_CSRF_PROTECT"] = False        # Disable CSRF for now (since using CORS safely)
 
-    jwt = JWTManager(app)
+    jwt.init_app(app)
+
 
     # === Mail Configuration ===
     app.config.update(
