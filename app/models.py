@@ -19,6 +19,7 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     kyc_document = db.Column(db.String(255))
     is_admin = db.Column(db.Boolean, default=False)
+    
 
     # Relationship: Agent owns many houses
     houses = db.relationship("House", backref="agent", lazy=True)
@@ -56,6 +57,7 @@ class House(db.Model):
     image_url = db.Column(db.String(255))
     image_path = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(50), default="pending")
 
 
 # ==========================================================
