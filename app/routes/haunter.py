@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from flask_login import login_required, current_user
+from flask_login import current_user
 from app.models import (
     db,
     User,
@@ -16,6 +16,7 @@ from app.utils.notify import create_notification
 from sqlalchemy import or_
 from app.extensions import bcrypt
 from app.utils.auth_helpers import jwt_or_login_required
+from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 
 bp = Blueprint("haunter", __name__, url_prefix="/api/haunter")
 
@@ -24,6 +25,19 @@ bp = Blueprint("haunter", __name__, url_prefix="/api/haunter")
 @bp.route("/ping")
 def ping():
     return jsonify({"message": "haunter blueprint active!"}), 200
+
+
+# Helper: unified current user (works for JWT + Flask-Login)
+def get_authenticated_user():
+    """Return the authenticated user (JWT or Flask-Login)."""
+    if current_user and not current_user.is_anonymous:
+        return current_user
+    try:
+        verify_jwt_in_request()
+        identity = get_jwt_identity()
+        return User.query.get(identity["id"])
+    except Exception:
+        return None
 
 
 # 🔹 Get all approved houses (with optional search & filters)
@@ -128,18 +142,22 @@ def get_house_details(house_id):
 @jwt_or_login_required(role="haunter")
 def contact_agent(house_id):
     """Allow haunter to request an agent’s contact info using wallet credits."""
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+
     house = House.query.filter_by(id=house_id, status="approved").first()
     if not house:
         return jsonify({"error": "House not found or not approved."}), 404
 
-    wallet = Wallet.query.filter_by(user_id=current_user.id).first()
+    wallet = Wallet.query.filter_by(user_id=user.id).first()
     if not wallet or wallet.balance < 2:
         return jsonify({"error": "Insufficient credits. Please top up."}), 402
 
     wallet.balance -= 2
 
     txn = Transaction(
-        user_id=current_user.id,
+        user_id=user.id,
         amount=-2,
         txn_type="deduction",
         description=f"Requested contact info for house '{house.title}'",
@@ -148,7 +166,7 @@ def contact_agent(house_id):
     db.session.add(txn)
 
     contact_request = ContactRequest(
-        haunter_id=current_user.id,
+        haunter_id=user.id,
         agent_id=house.agent_id,
         house_id=house.id,
         created_at=datetime.utcnow(),
@@ -156,7 +174,7 @@ def contact_agent(house_id):
     db.session.add(contact_request)
 
     create_notification(house.agent_id, f"A haunter just requested contact for your listing '{house.title}'.")
-    create_notification(current_user.id, f"2 credits deducted for contacting the agent of '{house.title}'.")
+    create_notification(user.id, f"2 credits deducted for contacting the agent of '{house.title}'.")
 
     db.session.commit()
 
@@ -171,18 +189,22 @@ def contact_agent(house_id):
 @jwt_or_login_required(role="haunter")
 def toggle_favorite(house_id):
     """Add or remove a house from haunter's favorites."""
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+
     house = House.query.get(house_id)
     if not house or house.status != "approved":
         return jsonify({"error": "House not found or not approved."}), 404
 
-    favorite = Favorite.query.filter_by(haunter_id=current_user.id, house_id=house_id).first()
+    favorite = Favorite.query.filter_by(haunter_id=user.id, house_id=house_id).first()
 
     if favorite:
         db.session.delete(favorite)
         db.session.commit()
         return jsonify({"message": f"Removed '{house.title}' from favorites."}), 200
     else:
-        fav = Favorite(haunter_id=current_user.id, house_id=house_id, created_at=datetime.utcnow())
+        fav = Favorite(haunter_id=user.id, house_id=house_id, created_at=datetime.utcnow())
         db.session.add(fav)
         db.session.commit()
         return jsonify({"message": f"Added '{house.title}' to favorites."}), 201
@@ -193,7 +215,11 @@ def toggle_favorite(house_id):
 @jwt_or_login_required(role="haunter")
 def get_favorites():
     """Return all favorite houses of the logged-in haunter."""
-    favorites = Favorite.query.filter_by(haunter_id=current_user.id).all()
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    favorites = Favorite.query.filter_by(haunter_id=user.id).all()
     results = []
     for f in favorites:
         house = House.query.get(f.house_id)
@@ -215,23 +241,21 @@ def get_favorites():
 @bp.route("/recommendations", methods=["GET"])
 @jwt_or_login_required(role="haunter")
 def get_recommendations():
-    """
-    Recommend houses based on the haunter’s favorites and contact history.
-    Prioritize similar location and price range.
-    """
-    # 🧩 Step 1: Get haunter’s activity
-    favorite_house_ids = [f.house_id for f in Favorite.query.filter_by(haunter_id=current_user.id)]
-    contacted_house_ids = [c.house_id for c in ContactRequest.query.filter_by(haunter_id=current_user.id)]
+    """Recommend houses based on the haunter’s favorites and contact history."""
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    favorite_house_ids = [f.house_id for f in Favorite.query.filter_by(haunter_id=user.id)]
+    contacted_house_ids = [c.house_id for c in ContactRequest.query.filter_by(haunter_id=user.id)]
 
     interacted_ids = set(favorite_house_ids + contacted_house_ids)
     if not interacted_ids:
         return jsonify({"message": "No activity yet — explore houses to get personalized recommendations."}), 200
 
-    # 🧩 Step 2: Find similar houses
     reference_houses = House.query.filter(House.id.in_(interacted_ids)).all()
     recommended_query = House.query.filter(House.status == "approved", ~House.id.in_(interacted_ids))
 
-    # Collect possible matching conditions
     conditions = []
     for ref in reference_houses:
         conditions.append(
@@ -266,16 +290,14 @@ def get_recommendations():
         "recommendations": results
     }), 200
 
+
 # 🔹 Trending Houses (Most Popular)
 @bp.route("/trending", methods=["GET"])
 @jwt_or_login_required(role="haunter")
 def get_trending_houses():
-    """
-    Return top trending houses based on number of favorites and contact requests.
-    """
+    """Return top trending houses based on number of favorites and contact requests."""
     from sqlalchemy import func
 
-    # 🧩 Count favorites + contact requests for each house
     favorite_counts = (
         db.session.query(Favorite.house_id, func.count(Favorite.id).label("fav_count"))
         .group_by(Favorite.house_id)
@@ -288,7 +310,6 @@ def get_trending_houses():
         .subquery()
     )
 
-    # 🧠 Combine them for a popularity score
     query = (
         db.session.query(
             House,
@@ -327,38 +348,3 @@ def get_trending_houses():
         "total_trending": len(results),
         "houses": results
     }), 200
-
-
-@bp.route("/register", methods=["POST"])
-def register_haunter():
-    """
-    Register a new haunter (house hunter).
-    Creates a user with role='haunter'.
-    """
-    data = request.get_json()
-    name = data.get("name")
-    email = data.get("email")
-    password = data.get("password")
-
-    if not all([name, email, password]):
-        return jsonify({"error": "Missing required fields"}), 400
-
-    if User.query.filter_by(email=email).first():
-        return jsonify({"error": "Email already registered"}), 409
-
-    hashed_pw = bcrypt.generate_password_hash(password).decode("utf-8")
-
-    new_user = User(username=name, email=email, password=hashed_pw, role="haunter")
-    db.session.add(new_user)
-    db.session.commit()
-
-    # Optional: automatically create wallet for new haunter
-    wallet = Wallet(user_id=new_user.id, balance=0.0)
-    db.session.add(wallet)
-    db.session.commit()
-
-    return jsonify({
-        "message": "Haunter registered successfully!",
-        "user_id": new_user.id,
-        "role": new_user.role
-    }), 201
