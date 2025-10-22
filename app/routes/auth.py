@@ -13,6 +13,7 @@ from flask_jwt_extended import (
 )
 from functools import wraps
 from flask_jwt_extended import create_access_token, set_access_cookies
+from datetime import timedelta
 
 # Create Blueprint
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
@@ -90,38 +91,44 @@ def register():
 
 # === LOGIN ===
 
-
 @bp.route("/login", methods=["POST"])
 def login():
-    """Logs in user and sets secure JWT cookie."""
-    data = request.get_json()
-    email = data.get("email")
-    password = data.get("password")
+    """Logs in an existing user (supports both Flask-Login and JWT)."""
+    try:
+        data = request.get_json()
+        email = data.get("email")
+        password = data.get("password")
 
-    if not email or not password:
-        return jsonify({"error": "Missing email or password"}), 400
+        if not email or not password:
+            return jsonify({"error": "Missing email or password"}), 400
 
-    user = User.query.filter_by(email=email).first()
-    if not user or not check_password_hash(user.password, password):
-        return jsonify({"error": "Invalid credentials"}), 401
+        user = User.query.filter_by(email=email).first()
+        if not user or not check_password_hash(user.password, password):
+            return jsonify({"error": "Invalid credentials"}), 401
 
-    # Flask-Login session
-    login_user(user)
+        # Flask-Login (for session use)
+        login_user(user)
 
-    # Create JWT token
-    access_token = create_access_token(identity={"id": user.id, "role": user.role})
+        # Create JWT token valid for 1 day
+        access_token = create_access_token(
+            identity={"id": user.id, "role": user.role},
+            expires_delta=timedelta(days=1)
+        )
 
-    # Set JWT cookie
-    response = jsonify({
-        "message": "Login successful",
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "role": user.role,
-        }
-    })
-    set_access_cookies(response, access_token)
-    return response, 200
+        return jsonify({
+            "message": "Login successful",
+            "token": access_token,
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "role": user.role
+            }
+        }), 200
+
+    except Exception as e:
+        # Return readable error in development
+        print("❌ Login error:", e)
+        return jsonify({"error": "Server error", "details": str(e)}), 500
 
 
 # === LOGOUT ===
