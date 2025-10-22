@@ -41,74 +41,48 @@ def get_authenticated_user():
 
 
 # 🔹 Get all approved houses (with optional search & filters)
+# ==========================================================
+# 🔹 Get All Houses (Haunter Feed)
+# ==========================================================
 @bp.route("/houses", methods=["GET"])
 @jwt_or_login_required(role="haunter")
 def get_all_houses():
     """
-    Return all approved houses available for haunters,
-    with support for search, filtering, and sorting.
+    Fetch all approved houses to show in the haunter's feed.
+    Includes image URLs and agent details.
     """
-    query = House.query.filter_by(status="approved")
+    try:
+        from app.models import House, User
 
-    # 🔍 Optional search and filters
-    search = request.args.get("search", "").strip().lower()
-    location = request.args.get("location", "").strip().lower()
-    min_price = request.args.get("min_price", type=float)
-    max_price = request.args.get("max_price", type=float)
-    sort_by = request.args.get("sort_by", "newest")  # options: newest, price_asc, price_desc
-
-    if search:
-        query = query.filter(
-            or_(
-                House.title.ilike(f"%{search}%"),
-                House.description.ilike(f"%{search}%")
-            )
+        houses = (
+            db.session.query(House, User.username.label("agent_name"))
+            .join(User, House.agent_id == User.id)
+            .filter(House.status == "approved")
+            .order_by(House.created_at.desc())
+            .all()
         )
 
-    if location:
-        query = query.filter(House.location.ilike(f"%{location}%"))
+        result = []
+        for house, agent_name in houses:
+            result.append({
+                "id": house.id,
+                "title": house.title,
+                "price": house.price,
+                "location": house.location,
+                "description": house.description,
+                "image_url": house.image_url or (
+                    f"https://househaunt.onrender.com/uploads/{house.image_path}"
+                    if house.image_path else None
+                ),
+                "agent_name": agent_name,
+                "created_at": house.created_at.isoformat(),
+            })
 
-    if min_price is not None:
-        query = query.filter(House.price >= min_price)
-    if max_price is not None:
-        query = query.filter(House.price <= max_price)
+        return jsonify({"houses": result}), 200
 
-    if sort_by == "price_asc":
-        query = query.order_by(House.price.asc())
-    elif sort_by == "price_desc":
-        query = query.order_by(House.price.desc())
-    else:
-        query = query.order_by(House.created_at.desc())
-
-    houses = query.all()
-    results = []
-    for h in houses:
-        agent = User.query.get(h.agent_id)
-        results.append({
-            "id": h.id,
-            "title": h.title,
-            "description": h.description,
-            "location": h.location,
-            "price": h.price,
-            "image_url": h.image_path,
-            "agent": {
-                "id": agent.id if agent else None,
-                "name": agent.username if agent else "Unknown Agent"
-            },
-            "created_at": h.created_at
-        })
-
-    return jsonify({
-        "total_results": len(results),
-        "filters": {
-            "search": search,
-            "location": location,
-            "min_price": min_price,
-            "max_price": max_price,
-            "sort_by": sort_by
-        },
-        "houses": results
-    }), 200
+    except Exception as e:
+        print("🔥 Error fetching houses:", e)
+        return jsonify({"error": "Failed to fetch houses"}), 500
 
 
 # 🔹 Get details of a specific house
