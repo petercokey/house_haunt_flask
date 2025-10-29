@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 import os
@@ -108,5 +108,12 @@ def create_app():
     @app.route("/")
     def home():
         return jsonify({"status": "House Haunt backend is live and running!"}), 200
+    
+    # === Serve uploaded files (for image display) ===
+    @app.route("/uploads/<path:filename>")
+    def serve_upload(filename):
+        upload_folder = os.path.join(app.root_path, "uploads")
+        return send_from_directory(upload_folder, filename)
+
 
     return app
