@@ -5,6 +5,7 @@ from werkzeug.utils import secure_filename
 from datetime import datetime
 from app.models import db, House, User, Notification  # ✅ Added User + Notification
 from app.utils.decorators import role_required, admin_required  # ✅ Combined imports
+from flask_jwt_extended import jwt_or_login_required
 
 bp = Blueprint("agent", __name__, url_prefix="/api/agent")
 
@@ -88,8 +89,7 @@ def create_house():
 
 # 🔹 Get all houses by logged-in agent
 @bp.route("/my-houses", methods=["GET"])
-@login_required
-@role_required("agent")
+@jwt_or_login_required(role="agent")
 def my_houses():
     """Return all houses created by the logged-in agent."""
     houses = House.query.filter_by(agent_id=current_user.id).order_by(House.created_at.desc()).all()
