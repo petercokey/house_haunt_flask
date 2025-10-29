@@ -3,7 +3,8 @@ from flask_login import login_required, current_user
 from app.models import User, Wallet, Review, ContactRequest, KYC, House
 from app import db
 from app.utils.decorators import role_required, admin_required
-
+from datetime import datetime
+from sqlalchemy import func
 
 bp = Blueprint("dashboard", __name__, url_prefix="/api/dashboard")
 
@@ -88,7 +89,7 @@ def agent_dashboard():
     }), 200
 
 
-# 🔹 Haunter Dashboard
+# 🔹 Haunter Dashboard (Basic)
 @bp.route("/haunter", methods=["GET"])
 @login_required
 @role_required("haunter")
@@ -137,6 +138,74 @@ def haunter_dashboard():
         "reviews_written": review_list,
         "total_requests": len(requested_houses),
         "total_reviews": len(reviews)
+    }), 200
+
+
+# 🔹 Enhanced Haunter Insights Dashboard
+@bp.route("/haunter/insights", methods=["GET"])
+@login_required
+@role_required("haunter")
+def haunter_insights():
+    """Advanced Haunter analytics and dashboard insights."""
+
+    # 1️⃣ Basic Info
+    haunter_info = {
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+    }
+
+    # 2️⃣ Contact Requests Summary
+    requests = ContactRequest.query.filter_by(haunter_id=current_user.id).all()
+    total_requests = len(requests)
+    unique_agents = len(set(r.agent_id for r in requests))
+
+    # 3️⃣ Top Agents Contacted
+    top_agents = (
+        db.session.query(User.username, func.count(ContactRequest.id).label("times_contacted"))
+        .join(ContactRequest, ContactRequest.agent_id == User.id)
+        .filter(ContactRequest.haunter_id == current_user.id)
+        .group_by(User.username)
+        .order_by(db.desc("times_contacted"))
+        .limit(3)
+        .all()
+    )
+    top_agents_list = [{"agent": a[0], "times_contacted": int(a[1])} for a in top_agents]
+
+    # 4️⃣ Review Stats
+    reviews = Review.query.filter_by(haunter_id=current_user.id).all()
+    total_reviews = len(reviews)
+    avg_rating_given = round(sum(r.rating for r in reviews) / total_reviews, 2) if total_reviews else 0
+
+    # 5️⃣ Recent Activity Log
+    activity_log = []
+    for r in requests[-3:]:
+        house = House.query.get(r.house_id)
+        activity_log.append({
+            "type": "Contact Request",
+            "house": house.title if house else "Deleted Listing",
+            "timestamp": getattr(r, "created_at", None)
+        })
+    for rev in reviews[-3:]:
+        agent = User.query.get(rev.agent_id)
+        activity_log.append({
+            "type": "Review",
+            "agent": agent.username if agent else "Unknown Agent",
+            "rating": rev.rating,
+            "timestamp": getattr(rev, "created_at", None)
+        })
+    activity_log = sorted(activity_log, key=lambda x: x["timestamp"] or datetime.min, reverse=True)
+
+    return jsonify({
+        "haunter": haunter_info,
+        "stats": {
+            "total_requests": total_requests,
+            "unique_agents": unique_agents,
+            "total_reviews": total_reviews,
+            "avg_rating_given": avg_rating_given
+        },
+        "top_agents": top_agents_list,
+        "recent_activity": activity_log
     }), 200
 
 
@@ -192,3 +261,4 @@ def admin_dashboard():
         "contact_requests": total_requests,
         "top_agents": top_agents_list
     }), 200
+
