@@ -1,12 +1,12 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy.exc import IntegrityError
-from functools import wraps
 from datetime import timedelta
-
+from functools import wraps
 from app.models import User
 from app import db
 from app.extensions import bcrypt
+from app.utils.auth_helpers import jwt_or_login_required
 from flask_jwt_extended import (
     create_access_token,
     get_jwt_identity,
@@ -15,38 +15,11 @@ from flask_jwt_extended import (
     unset_jwt_cookies,
 )
 
+
 # Blueprint
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 
-# === Hybrid Auth Helper (Session or JWT) ===
-def jwt_or_login_required(role=None):
-    """
-    Allow access if user is logged in (Flask-Login)
-    OR provides a valid JWT.
-    Optionally checks role.
-    """
-    def decorator(fn):
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
-            # Case 1: Flask-Login session
-            if current_user and not current_user.is_anonymous:
-                if role and current_user.role != role:
-                    return jsonify({"error": "Access denied: wrong role"}), 403
-                return fn(*args, **kwargs)
-
-            # Case 2: JWT token
-            try:
-                verify_jwt_in_request()
-                identity = get_jwt_identity()
-                if role and identity.get("role") != role:
-                    return jsonify({"error": "Access denied: wrong role"}), 403
-            except Exception:
-                return jsonify({"error": "Unauthorized"}), 401
-
-            return fn(*args, **kwargs)
-        return wrapper
-    return decorator
 
 
 # === Health Check ===
