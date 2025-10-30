@@ -3,9 +3,11 @@ from flask import Blueprint, jsonify, request, current_app
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from datetime import datetime
-from app.models import db, House, User, Notification  # ✅ Added User + Notification
+from app.models import db, House, User, Notification, KYC  # ✅ Added User + Notification
 from app.utils.decorators import role_required, admin_required  # ✅ Combined imports
-from flask_jwt_extended import jwt_or_login_required
+from app.utils.auth_helpers import jwt_or_login_required
+
+
 
 bp = Blueprint("agent", __name__, url_prefix="/api/agent")
 
@@ -270,3 +272,70 @@ def delete_house_admin(house_id):
     db.session.commit()
 
     return jsonify({"message": f"House '{house.title}' deleted by admin."}), 200
+
+
+# ==========================================================
+# 🔹 GET AGENT PROFILE
+# ==========================================================
+@bp.route("/profile", methods=["GET"])
+@jwt_or_login_required(role="agent")
+def get_agent_profile():
+    """Fetch the logged-in agent's profile info."""
+    kyc_record = KYC.query.filter_by(agent_id=current_user.id).first()
+
+    return jsonify({
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "role": current_user.role,
+        "credits": current_user.credits,
+        "kyc_verified": current_user.kyc_verified,
+        "kyc_status": kyc_record.status if kyc_record else "not_submitted",
+        "created_at": current_user.created_at
+    }), 200
+
+
+# ==========================================================
+# 🔹 UPDATE AGENT PROFILE
+# ==========================================================
+@bp.route("/profile/update", methods=["PUT"])
+@jwt_or_login_required(role="agent")
+def update_agent_profile():
+    """Allow the agent to update username or email."""
+    data = request.get_json()
+    username = data.get("username")
+    email = data.get("email")
+
+    if not username or not email:
+        return jsonify({"error": "Username and email are required"}), 400
+
+    # Update fields
+    current_user.username = username
+    current_user.email = email
+    db.session.commit()
+
+    return jsonify({"message": "Profile updated successfully!"}), 200
+
+
+# ==========================================================
+# 🔹 CHANGE PASSWORD
+# ==========================================================
+@bp.route("/profile/change-password", methods=["PUT"])
+@jwt_or_login_required(role="agent")
+def change_password():
+    """Change agent password."""
+    data = request.get_json()
+    old_password = data.get("old_password")
+    new_password = data.get("new_password")
+
+    if not old_password or not new_password:
+        return jsonify({"error": "Both old and new passwords are required"}), 400
+
+    if not bcrypt.check_password_hash(current_user.password, old_password):
+        return jsonify({"error": "Old password is incorrect"}), 401
+
+    current_user.password = bcrypt.generate_password_hash(new_password).decode("utf-8")
+    db.session.commit()
+
+    return jsonify({"message": "Password updated successfully!"}), 200
+
