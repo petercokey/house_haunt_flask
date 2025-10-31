@@ -1,44 +1,55 @@
 # app/utils/auth_helpers.py
 from functools import wraps
-from flask import jsonify
-from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
-from flask_login import current_user, login_required
+from flask import request, jsonify, g
+from flask_login import current_user, login_user
 from app.models import User
 import jwt
 import os
-from datetime import datetime
 
 SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key")
 
 def jwt_or_login_required(role=None):
-    """
-    Allows access if the user is authenticated via JWT or Flask-Login.
-    Optionally enforces a specific role (e.g. "agent" or "admin").
-    """
-    def wrapper(fn):
-        @wraps(fn)
-        def decorator(*args, **kwargs):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
             user = None
 
-            # Try JWT-based auth first
-            try:
-                verify_jwt_in_request(optional=True)
-                identity = get_jwt_identity()
-                if identity:
-                    user = User.query.filter_by(id=identity).first()
-            except Exception:
-                pass
+            # 1️⃣ Flask-Login session first
+            if current_user.is_authenticated:
+                user = current_user
 
-            # Fallback: Flask-Login session
-            if not user and not current_user.is_authenticated:
-                return jsonify({"error": "Authentication required"}), 401
+            # 2️⃣ JWT cookie or Authorization header
+            else:
+                token = None
 
-            user = user or current_user
+                # Prefer Authorization Bearer
+                auth_header = request.headers.get("Authorization", "")
+                if auth_header.startswith("Bearer "):
+                    token = auth_header.split(" ")[1]
+                # Or try JWT cookie
+                elif "access_token_cookie" in request.cookies:
+                    token = request.cookies.get("access_token_cookie")
+
+                if token:
+                    try:
+                        data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+                        user = User.query.get(data.get("user_id"))
+                    except jwt.ExpiredSignatureError:
+                        return jsonify({"error": "Token expired"}), 401
+                    except jwt.InvalidTokenError:
+                        return jsonify({"error": "Invalid token"}), 401
+
+            if not user:
+                return jsonify({"error": "Unauthorized. Please log in."}), 403
 
             # Role check
-            if role and getattr(user, "role", None) != role:
-                return jsonify({"error": f"{role.capitalize()} access only"}), 403
+            if role and user.role != role:
+                return jsonify({"error": f"Access restricted to {role} users only."}), 403
 
-            return fn(*args, **kwargs)
-        return decorator
-    return wrapper
+            # Make current_user available
+            login_user(user)
+            g.user = user
+
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator

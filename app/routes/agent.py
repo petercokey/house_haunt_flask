@@ -29,7 +29,8 @@ def allowed_file(filename):
 
 # 🔹 Agent creates a new house listing
 @bp.route("/create-house", methods=["POST"])
-@jwt_or_login_required(role="agent")
+@login_required
+@role_required("agent")
 def create_house():
     """Allow agents to create new house listings with image upload."""
 
@@ -117,7 +118,8 @@ def my_houses():
 
 # 🔹 Edit an existing house listing
 @bp.route("/edit-house/<int:house_id>", methods=["PUT"])
-@jwt_or_login_required(role="agent")
+@login_required
+@role_required("agent")
 def edit_house(house_id):
     """Allow agents to edit their own house listing."""
     house = House.query.filter_by(id=house_id, agent_id=current_user.id).first()
@@ -166,7 +168,8 @@ def edit_house(house_id):
 
 # 🔹 Delete a house
 @bp.route("/delete-house/<int:house_id>", methods=["DELETE"])
-@jwt_or_login_required(role="agent")
+@login_required
+@role_required("agent")
 def delete_house(house_id):
     """Allow agents to delete their own house listing."""
     house = House.query.filter_by(id=house_id, agent_id=current_user.id).first()
@@ -186,7 +189,8 @@ def delete_house(house_id):
 
 # 🏠 Get all house listings (for admin)
 @bp.route("/all-houses", methods=["GET"])
-@jwt_or_login_required(role="admin")
+@login_required
+@admin_required
 def all_houses():
     """Admin view of all house listings."""
     houses = House.query.order_by(House.created_at.desc()).all()
@@ -218,7 +222,8 @@ def all_houses():
 
 # ✅ Approve or Reject House
 @bp.route("/review-house/<int:house_id>", methods=["POST"])
-@jwt_or_login_required(role="admin")
+@login_required
+@admin_required
 def review_house(house_id):
     """Admin can approve or reject a house listing."""
     data = request.get_json()
@@ -249,7 +254,8 @@ def review_house(house_id):
 
 # 🗑️ Delete a house listing (admin override)
 @bp.route("/delete-house-admin/<int:house_id>", methods=["DELETE"])
-@jwt_or_login_required(role="admin")
+@login_required
+@admin_required
 def delete_house_admin(house_id):
     """Allow admin to delete any house listing."""
     house = House.query.get(house_id)
