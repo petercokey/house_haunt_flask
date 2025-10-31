@@ -1,12 +1,12 @@
 import os
 from flask import Blueprint, jsonify, request, current_app
-from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from datetime import datetime
-from app.models import db, House, User, Notification, KYC  # ✅ Added User + Notification
-from app.utils.decorators import role_required, admin_required  # ✅ Combined imports
+from flask_login import current_user
+from app.models import db, House, User, Notification, KYC, ContactRequest, Transaction
+from app.utils.decorators import role_required, admin_required
 from app.utils.auth_helpers import jwt_or_login_required
-
+from app.extensions import bcrypt
 
 
 bp = Blueprint("agent", __name__, url_prefix="/api/agent")
@@ -20,19 +20,19 @@ def ping():
 # ✅ Allowed file types for house images
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 
-
 def allowed_file(filename):
     """Check if uploaded file has allowed extension."""
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-# 🔹 Agent creates a new house listing
+# ==========================================================
+# 🔹 AGENT HOUSE MANAGEMENT
+# ==========================================================
+
 @bp.route("/create-house", methods=["POST"])
-@login_required
-@role_required("agent")
+@jwt_or_login_required(role="agent")
 def create_house():
     """Allow agents to create new house listings with image upload."""
-
     title = request.form.get("title")
     description = request.form.get("description")
     location = request.form.get("location")
@@ -41,28 +41,23 @@ def create_house():
     if not all([title, description, location, price]):
         return jsonify({"error": "All fields (title, description, location, price) are required."}), 400
 
-    # 🔹 Handle image upload
     if "image" not in request.files:
         return jsonify({"error": "House image is required."}), 400
 
     file = request.files["image"]
-
     if file.filename == "":
         return jsonify({"error": "No selected file."}), 400
 
     if not allowed_file(file.filename):
         return jsonify({"error": "Invalid image type. Allowed: png, jpg, jpeg, webp"}), 400
 
-    # Create upload folder if not exists
     folder = os.path.join(current_app.root_path, "uploads", "house_images")
     os.makedirs(folder, exist_ok=True)
 
-    # Save image with a safe filename
     filename = secure_filename(f"{current_user.id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{file.filename}")
     image_path = os.path.join(folder, filename)
     file.save(image_path)
 
-    # ✅ Save house record in DB
     house = House(
         agent_id=current_user.id,
         title=title,
@@ -71,7 +66,7 @@ def create_house():
         price=float(price),
         image_path=image_path,
         created_at=datetime.utcnow(),
-        status="pending"  # ✅ newly added for moderation
+        status="pending"
     )
 
     db.session.add(house)
@@ -89,36 +84,28 @@ def create_house():
     }), 201
 
 
-# 🔹 Get all houses by logged-in agent
 @bp.route("/my-houses", methods=["GET"])
 @jwt_or_login_required(role="agent")
 def my_houses():
     """Return all houses created by the logged-in agent."""
     houses = House.query.filter_by(agent_id=current_user.id).order_by(House.created_at.desc()).all()
 
-    results = []
-    for h in houses:
-        results.append({
-            "id": h.id,
-            "title": h.title,
-            "description": h.description,
-            "location": h.location,
-            "price": h.price,
-            "image_url": h.image_path,
-            "status": getattr(h, "status", "pending"),
-            "created_at": h.created_at
-        })
+    results = [{
+        "id": h.id,
+        "title": h.title,
+        "description": h.description,
+        "location": h.location,
+        "price": h.price,
+        "image_url": h.image_path,
+        "status": getattr(h, "status", "pending"),
+        "created_at": h.created_at
+    } for h in houses]
 
-    return jsonify({
-        "total_houses": len(results),
-        "houses": results
-    }), 200
+    return jsonify({"total_houses": len(results), "houses": results}), 200
 
 
-# 🔹 Edit an existing house listing
 @bp.route("/edit-house/<int:house_id>", methods=["PUT"])
-@login_required
-@role_required("agent")
+@jwt_or_login_required(role="agent")
 def edit_house(house_id):
     """Allow agents to edit their own house listing."""
     house = House.query.filter_by(id=house_id, agent_id=current_user.id).first()
@@ -131,13 +118,11 @@ def edit_house(house_id):
     location = request.form.get("location", house.location)
     price = request.form.get("price", house.price)
 
-    # ✅ Update optional fields
     house.title = title
     house.description = description
     house.location = location
     house.price = float(price)
 
-    # ✅ Handle optional new image upload
     if "image" in request.files:
         file = request.files["image"]
         if file and file.filename:
@@ -165,10 +150,8 @@ def edit_house(house_id):
     }), 200
 
 
-# 🔹 Delete a house
 @bp.route("/delete-house/<int:house_id>", methods=["DELETE"])
-@login_required
-@role_required("agent")
+@jwt_or_login_required(role="agent")
 def delete_house(house_id):
     """Allow agents to delete their own house listing."""
     house = House.query.filter_by(id=house_id, agent_id=current_user.id).first()
@@ -183,100 +166,33 @@ def delete_house(house_id):
 
 
 # ==========================================================
-# 🔹 ADMIN HOUSE MANAGEMENT
+# 🔹 TRANSACTIONS
 # ==========================================================
 
-# 🏠 Get all house listings (for admin)
-@bp.route("/all-houses", methods=["GET"])
-@login_required
-@admin_required
-def all_houses():
-    """Admin view of all house listings."""
-    houses = House.query.order_by(House.created_at.desc()).all()
+@bp.route("/transactions", methods=["GET"])
+@jwt_or_login_required(role="agent")
+def get_agent_transactions():
+    """Return transactions related to the agent."""
+    transactions = Transaction.query.filter_by(user_id=current_user.id).order_by(Transaction.created_at.desc()).all()
 
-    results = []
-    for h in houses:
-        agent = User.query.get(h.agent_id)
-        results.append({
-            "id": h.id,
-            "title": h.title,
-            "description": h.description,
-            "location": h.location,
-            "price": h.price,
-            "status": getattr(h, "status", "active"),
-            "agent": {
-                "id": agent.id if agent else None,
-                "name": agent.username if agent else "Deleted User",
-                "email": agent.email if agent else "N/A"
-            },
-            "image_url": h.image_path,
-            "created_at": h.created_at
-        })
+    results = [{
+        "id": t.id,
+        "amount": t.amount,
+        "status": t.status,
+        "type": t.type,
+        "created_at": t.created_at.strftime("%Y-%m-%d %H:%M:%S")
+    } for t in transactions]
 
     return jsonify({
-        "total_houses": len(results),
-        "houses": results
+        "total_transactions": len(results),
+        "transactions": results
     }), 200
 
 
-# ✅ Approve or Reject House
-@bp.route("/review-house/<int:house_id>", methods=["POST"])
-@login_required
-@admin_required
-def review_house(house_id):
-    """Admin can approve or reject a house listing."""
-    data = request.get_json()
-    decision = data.get("decision")  # "approved" or "rejected"
-    note = data.get("note", "")
-
-    if decision not in ["approved", "rejected"]:
-        return jsonify({"error": "Decision must be 'approved' or 'rejected'"}), 400
-
-    house = House.query.get(house_id)
-    if not house:
-        return jsonify({"error": "House not found"}), 404
-
-    house.status = decision
-    db.session.commit()
-
-    # 🔔 Notify the agent
-    msg = f"Your house '{house.title}' has been {decision.upper()}. {note}"
-    notification = Notification(user_id=house.agent_id, message=msg)
-    db.session.add(notification)
-    db.session.commit()
-
-    return jsonify({
-        "message": f"House '{house.title}' {decision} successfully.",
-        "note": note
-    }), 200
-
-
-# 🗑️ Delete a house listing (admin override)
-@bp.route("/delete-house-admin/<int:house_id>", methods=["DELETE"])
-@login_required
-@admin_required
-def delete_house_admin(house_id):
-    """Allow admin to delete any house listing."""
-    house = House.query.get(house_id)
-
-    if not house:
-        return jsonify({"error": "House not found"}), 404
-
-    db.session.delete(house)
-    db.session.commit()
-
-    # 🔔 Notify the agent
-    msg = f"Your house '{house.title}' has been removed by the admin."
-    notification = Notification(user_id=house.agent_id, message=msg)
-    db.session.add(notification)
-    db.session.commit()
-
-    return jsonify({"message": f"House '{house.title}' deleted by admin."}), 200
-
-
 # ==========================================================
-# 🔹 GET AGENT PROFILE
+# 🔹 PROFILE & ACCOUNT
 # ==========================================================
+
 @bp.route("/profile", methods=["GET"])
 @jwt_or_login_required(role="agent")
 def get_agent_profile():
@@ -295,9 +211,6 @@ def get_agent_profile():
     }), 200
 
 
-# ==========================================================
-# 🔹 UPDATE AGENT PROFILE
-# ==========================================================
 @bp.route("/profile/update", methods=["PUT"])
 @jwt_or_login_required(role="agent")
 def update_agent_profile():
@@ -309,7 +222,6 @@ def update_agent_profile():
     if not username or not email:
         return jsonify({"error": "Username and email are required"}), 400
 
-    # Update fields
     current_user.username = username
     current_user.email = email
     db.session.commit()
@@ -317,9 +229,6 @@ def update_agent_profile():
     return jsonify({"message": "Profile updated successfully!"}), 200
 
 
-# ==========================================================
-# 🔹 CHANGE PASSWORD
-# ==========================================================
 @bp.route("/profile/change-password", methods=["PUT"])
 @jwt_or_login_required(role="agent")
 def change_password():
@@ -339,3 +248,55 @@ def change_password():
 
     return jsonify({"message": "Password updated successfully!"}), 200
 
+
+# ==========================================================
+# 🔹 NOTIFICATIONS & DASHBOARD SUMMARY
+# ==========================================================
+
+@bp.route("/notifications", methods=["GET"])
+@jwt_or_login_required(role="agent")
+def get_agent_notifications():
+    """Return latest notifications for the agent."""
+    notifications = (
+        Notification.query
+        .filter_by(user_id=current_user.id)
+        .order_by(Notification.created_at.desc())
+        .limit(20)
+        .all()
+    )
+
+    results = [{
+        "id": n.id,
+        "message": n.message,
+        "is_read": n.is_read,
+        "created_at": n.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+    } for n in notifications]
+
+    return jsonify({"total": len(results), "notifications": results}), 200
+
+
+@bp.route("/summary", methods=["GET"])
+@jwt_or_login_required(role="agent")
+def agent_summary():
+    """Returns key stats for agent dashboard overview."""
+    agent_id = current_user.id
+
+    total_posts = House.query.filter_by(agent_id=agent_id).count()
+    total_contacts = ContactRequest.query.filter_by(agent_id=agent_id).count()
+    total_transactions = Transaction.query.filter_by(user_id=agent_id).count()
+
+    kyc = KYC.query.filter_by(agent_id=agent_id).first()
+    kyc_status = kyc.status if kyc else "not_submitted"
+
+    user = User.query.get(agent_id)
+    credits = user.credits if user else 0
+
+    return jsonify({
+        "username": user.username,
+        "email": user.email,
+        "credits": credits,
+        "total_posts": total_posts,
+        "total_contacts": total_contacts,
+        "total_transactions": total_transactions,
+        "kyc_status": kyc_status,
+    }), 200
