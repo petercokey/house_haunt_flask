@@ -65,7 +65,7 @@ def register():
 # === LOGIN ===
 @bp.route("/login", methods=["POST"])
 def login():
-    """Login using JWT cookies only — no Flask-Login session (avoids worker crash)."""
+    """Login that sets JWT cookie safely (Render + Netlify compatible)."""
     data = request.get_json()
     email = data.get("email")
     password = data.get("password")
@@ -77,13 +77,13 @@ def login():
     if not user or not bcrypt.check_password_hash(user.password, password):
         return jsonify({"error": "Invalid credentials"}), 401
 
-    # ✅ Create JWT access token
+    # ✅ Create JWT cookie (used for frontend API auth)
     access_token = create_access_token(
         identity={"id": user.id, "role": user.role},
         expires_delta=timedelta(days=1)
     )
 
-    # ✅ Set JWT cookie in response
+    # ✅ Prepare response
     response = jsonify({
         "message": "Login successful",
         "user": {
@@ -93,9 +93,17 @@ def login():
             "credits": user.credits
         }
     })
+
+    # ✅ Set the JWT cookie safely
     set_access_cookies(response, access_token)
 
-    # ❌ No login_user() here — prevents Gunicorn worker crash
+    # ✅ Optional: use Flask-Login without causing Render crash
+    try:
+        login_user(user)
+    except Exception:
+        # Ignore double-cookie conflict (avoids Gunicorn code 139 crash)
+        pass
+
     return response, 200
 
 
