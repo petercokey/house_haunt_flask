@@ -63,9 +63,10 @@ def register():
 
 
 # === LOGIN ===
+# === LOGIN ===
 @bp.route("/login", methods=["POST"])
 def login():
-    """Login that sets JWT cookie safely (Render + Netlify compatible)."""
+    """Hybrid login using both Flask-Login and JWT (cookie-based)."""
     data = request.get_json()
     email = data.get("email")
     password = data.get("password")
@@ -77,13 +78,16 @@ def login():
     if not user or not bcrypt.check_password_hash(user.password, password):
         return jsonify({"error": "Invalid credentials"}), 401
 
-    # ✅ Create JWT cookie (used for frontend API auth)
+    # 🔹 Log the user in with Flask-Login (for session-based access)
+    login_user(user)
+
+    # 🔹 Create JWT token (for API access)
     access_token = create_access_token(
         identity={"id": user.id, "role": user.role},
         expires_delta=timedelta(days=1)
     )
 
-    # ✅ Prepare response
+    # 🔹 Build JSON response
     response = jsonify({
         "message": "Login successful",
         "user": {
@@ -94,15 +98,16 @@ def login():
         }
     })
 
-    # ✅ Set the JWT cookie safely
-    set_access_cookies(response, access_token)
-
-    # ✅ Optional: use Flask-Login without causing Render crash
-    try:
-        login_user(user)
-    except Exception:
-        # Ignore double-cookie conflict (avoids Gunicorn code 139 crash)
-        pass
+    # 🔹 Manually set the cookie instead of set_access_cookies()  (avoids Gunicorn crash)
+    response.set_cookie(
+        "access_token_cookie",
+        access_token,
+        max_age=86400,              # 1 day
+        secure=True,                # HTTPS only
+        httponly=True,              # JavaScript can’t read it
+        samesite="None",            # allow cross-site from Netlify
+        path="/"
+    )
 
     return response, 200
 
