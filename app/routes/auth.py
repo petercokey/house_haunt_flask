@@ -66,7 +66,7 @@ def register():
 # === LOGIN ===
 @bp.route("/login", methods=["POST"])
 def login():
-    """Hybrid login using both Flask-Login and JWT (cookie-based)."""
+    """Login: issue JWT cookie, support session re-login without crash."""
     data = request.get_json()
     email = data.get("email")
     password = data.get("password")
@@ -78,16 +78,11 @@ def login():
     if not user or not bcrypt.check_password_hash(user.password, password):
         return jsonify({"error": "Invalid credentials"}), 401
 
-    # 🔹 Log the user in with Flask-Login (for session-based access)
-    login_user(user)
-
-    # 🔹 Create JWT token (for API access)
+    # ✅ JWT cookie for frontend
     access_token = create_access_token(
         identity={"id": user.id, "role": user.role},
         expires_delta=timedelta(days=1)
     )
-
-    # 🔹 Build JSON response
     response = jsonify({
         "message": "Login successful",
         "user": {
@@ -97,17 +92,14 @@ def login():
             "credits": user.credits
         }
     })
+    set_access_cookies(response, access_token)
 
-    # 🔹 Manually set the cookie instead of set_access_cookies()  (avoids Gunicorn crash)
-    response.set_cookie(
-        "access_token_cookie",
-        access_token,
-        max_age=86400,              # 1 day
-        secure=True,                # HTTPS only
-        httponly=True,              # JavaScript can’t read it
-        samesite="None",            # allow cross-site from Netlify
-        path="/"
-    )
+    # ✅ SAFELY handle Flask-Login (only for internal session, not frontend)
+    try:
+        if not current_user.is_authenticated:
+            login_user(user, remember=False)
+    except Exception as e:
+        print(f"[LOGIN WARNING] Skipped Flask-Login: {e}")
 
     return response, 200
 
