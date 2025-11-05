@@ -1,113 +1,95 @@
 from flask import Blueprint, jsonify, request
-from flask_login import login_required, current_user
 from datetime import datetime
-from app.models import db, Wallet, Transaction, Notification
-from app.utils.decorators import role_required
-from app.utils.notify import create_notification
-
+from app.models import db, Wallet, Transaction, User, House
+from app.utils.auth_helpers import jwt_or_login_required, get_authenticated_user
 
 bp = Blueprint("wallet", __name__, url_prefix="/api/wallet")
 
 
+# 🟢 Health check
 @bp.route("/ping")
 def ping():
     return jsonify({"message": "wallet blueprint active"}), 200
 
 
-# 🔹 View wallet balance
-@bp.route("/balance", methods=["GET"])
-@login_required
-def view_balance():
-    wallet = Wallet.query.filter_by(user_id=current_user.id).first()
-    if not wallet:
-        return jsonify({"balance": 0, "message": "Wallet not found"}), 200
+# ==========================================================
+# 🔹 View all approved houses (for haunters)
+# ==========================================================
+@bp.route("/houses", methods=["GET"])
+@jwt_or_login_required(role="haunter")
+def get_all_houses():
+    """
+    Return all approved houses available for haunters,
+    with support for search, filtering, and sorting.
+    """
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
 
-    return jsonify({
-        "user_id": current_user.id,
-        "balance": wallet.balance,
-        "credits_spent": wallet.credits_spent,
-        "updated_at": wallet.updated_at
-    }), 200
+    query = House.query.filter_by(status="approved")
 
+    # 🔍 Optional search and filters
+    search = request.args.get("search", "").strip().lower()
+    location = request.args.get("location", "").strip().lower()
+    min_price = request.args.get("min_price", type=float)
+    max_price = request.args.get("max_price", type=float)
+    sort_by = request.args.get("sort_by", "newest")  # options: newest, price_asc, price_desc
 
-# 🔹 Top-up wallet
-@bp.route("/topup", methods=["POST"])
-@login_required
-@role_required("haunter")
-def topup_wallet():
-    """Haunter adds credits to their wallet."""
-    data = request.get_json()
-    amount = data.get("amount", 0)
+    # 🔹 Apply text search
+    if search:
+        query = query.filter(
+            db.or_(
+                House.title.ilike(f"%{search}%"),
+                House.description.ilike(f"%{search}%")
+            )
+        )
 
-    if amount <= 0:
-        return jsonify({"error": "Invalid top-up amount"}), 400
+    # 🔹 Filter by location
+    if location:
+        query = query.filter(House.location.ilike(f"%{location}%"))
 
-    wallet = Wallet.query.filter_by(user_id=current_user.id).first()
-    if not wallet:
-        wallet = Wallet(user_id=current_user.id, balance=0, credits_spent=0)
-        db.session.add(wallet)
+    # 🔹 Filter by price range
+    if min_price is not None:
+        query = query.filter(House.price >= min_price)
+    if max_price is not None:
+        query = query.filter(House.price <= max_price)
 
-    wallet.balance += amount
-    wallet.updated_at = datetime.utcnow()
-
-    # Log transaction
-    txn = Transaction(
-        user_id=current_user.id,
-        amount=amount,
-        txn_type="topup",
-        description="Wallet top-up",
-        created_at=datetime.utcnow()
-    )
-    db.session.add(txn)
-    db.session.commit()
-
-    # ✅ Notify user of successful top-up
-    create_notification(current_user.id, f"Your wallet was topped up with {amount} credits!")
-
-    return jsonify({
-        "message": f"Wallet topped up successfully with {amount} credits.",
-        "new_balance": wallet.balance
-    }), 200
-
-
-# 🔹 Admin credit or debit adjustment
-@bp.route("/adjust/<int:user_id>", methods=["POST"])
-@login_required
-@role_required("admin")
-def adjust_wallet(user_id):
-    """Admin can adjust wallet balance (credit or debit)."""
-    data = request.get_json()
-    amount = data.get("amount")
-    reason = data.get("reason", "Admin adjustment")
-
-    if amount == 0:
-        return jsonify({"error": "Amount cannot be zero"}), 400
-
-    wallet = Wallet.query.filter_by(user_id=user_id).first()
-    if not wallet:
-        wallet = Wallet(user_id=user_id, balance=0, credits_spent=0)
-        db.session.add(wallet)
-
-    wallet.balance += amount
-    wallet.updated_at = datetime.utcnow()
-
-    txn = Transaction(
-        user_id=user_id,
-        amount=amount,
-        txn_type="admin_adjustment",
-        description=reason,
-        created_at=datetime.utcnow()
-    )
-    db.session.add(txn)
-    db.session.commit()
-
-    # ✅ Notify the affected user
-    if amount > 0:
-        msg = f"Your wallet has been credited with {amount} credits by admin. Reason: {reason}."
+    # 🔹 Sorting
+    if sort_by == "price_asc":
+        query = query.order_by(House.price.asc())
+    elif sort_by == "price_desc":
+        query = query.order_by(House.price.desc())
     else:
-        msg = f"{abs(amount)} credits were deducted from your wallet by admin. Reason: {reason}."
-    create_notification(user_id, msg)
+        query = query.order_by(House.created_at.desc())
 
-    return jsonify({"message": "Wallet adjusted successfully"}), 200
+    # 🔹 Execute query
+    houses = query.all()
 
+    results = []
+    for h in houses:
+        agent = User.query.get(h.agent_id)
+        results.append({
+            "id": h.id,
+            "title": h.title,
+            "description": h.description,
+            "location": h.location,
+            "price": h.price,
+            "image_url": h.image_path,
+            "agent": {
+                "id": agent.id if agent else None,
+                "name": agent.username if agent else "Unknown Agent"
+            },
+            "created_at": h.created_at
+        })
 
+    return jsonify({
+        "total_results": len(results),
+        "filters": {
+            "search": search,
+            "location": location,
+            "min_price": min_price,
+            "max_price": max_price,
+            "sort_by": sort_by
+        },
+        "houses": results
+    }), 200
