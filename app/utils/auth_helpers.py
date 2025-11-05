@@ -1,59 +1,86 @@
 # app/utils/auth_helpers.py
 from functools import wraps
 from flask import request, jsonify, g
-from flask_login import current_user, login_user
+import jwt, os
 from app.models import User
-import jwt
-import os
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "super-secret-jwt-key")
+# 🔹 Secret key for JWT decoding
+SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key")
 
-def jwt_or_login_required(role=None):
-    def decorator(f):
-        @wraps(f)
+
+# ==========================================================
+# 🔹 Core JWT Authentication Decorator
+# ==========================================================
+def jwt_required():
+    """
+    Ensure the request includes a valid JWT token.
+    Decodes the token and attaches the user object to `g.user`.
+    """
+    def decorator(fn):
+        @wraps(fn)
         def wrapper(*args, **kwargs):
-            user = None
+            token = request.cookies.get("access_token_cookie")
 
-            # 1️⃣ Check Flask-Login session
-            if current_user.is_authenticated:
-                user = current_user
-            else:
-                token = None
+            if not token:
+                return jsonify({"error": "Missing authentication token"}), 401
 
-                # Try Authorization header first
-                auth_header = request.headers.get("Authorization", "")
-                if auth_header.startswith("Bearer "):
-                    token = auth_header.split(" ")[1]
-                # Or JWT cookie
-                elif "access_token_cookie" in request.cookies:
-                    token = request.cookies.get("access_token_cookie")
+            try:
+                payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+                user = User.query.get(payload.get("user_id"))
+                if not user:
+                    return jsonify({"error": "User not found"}), 404
 
-                if token:
-                    try:
-                        # Decode token created by Flask-JWT-Extended
-                        data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-                        identity = data.get("sub")  # Flask-JWT-Extended stores identity here
-                        if isinstance(identity, dict):
-                            user_id = identity.get("id")
-                        else:
-                            user_id = identity
-                        user = User.query.get(user_id)
-                    except jwt.ExpiredSignatureError:
-                        return jsonify({"error": "Token expired"}), 401
-                    except jwt.InvalidTokenError:
-                        return jsonify({"error": "Invalid token"}), 401
+                g.user = user
+            except jwt.ExpiredSignatureError:
+                return jsonify({"error": "Token expired"}), 401
+            except jwt.InvalidTokenError:
+                return jsonify({"error": "Invalid token"}), 401
 
-            if not user:
-                return jsonify({"error": "Unauthorized. Please log in."}), 403
-
-            # Role check (if specified)
-            if role and user.role != role:
-                return jsonify({"error": f"Access restricted to {role} users only."}), 403
-
-            # Register the user in Flask-Login for this request context
-            login_user(user)
-            g.user = user
-
-            return f(*args, **kwargs)
+            return fn(*args, **kwargs)
         return wrapper
     return decorator
+
+
+# ==========================================================
+# 🔹 Role-based Access Control Decorator
+# ==========================================================
+def role_required(role_name):
+    """
+    Requires a valid JWT and checks that the user has the given role.
+    Example:
+        @role_required("agent")
+        def protected_route(): ...
+    """
+    def decorator(fn):
+        @wraps(fn)
+        @jwt_required()
+        def wrapper(*args, **kwargs):
+            user = g.get("user")
+            if not user:
+                return jsonify({"error": "Unauthorized"}), 401
+
+            if user.role != role_name:
+                return jsonify({"error": f"Access denied. Requires '{role_name}' role."}), 403
+
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+# ==========================================================
+# 🔹 Utility: get_authenticated_user()
+# ==========================================================
+def get_authenticated_user():
+    """
+    Returns the authenticated user if the JWT is valid.
+    Can be used manually inside routes instead of decorators.
+    """
+    token = request.cookies.get("access_token_cookie")
+    if not token:
+        return None
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        return User.query.get(payload.get("user_id"))
+    except Exception:
+        return None

@@ -6,6 +6,7 @@ from datetime import timedelta
 from app.extensions import db, bcrypt, mail
 from flask_migrate import Migrate
 
+
 def create_app():
     app = Flask(__name__)
 
@@ -16,7 +17,7 @@ def create_app():
     )
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-    # === Secure Cookies ===
+    # === Secure Cookies (for JWT cookie transport) ===
     app.config.update(
         SESSION_COOKIE_SAMESITE="None",
         SESSION_COOKIE_SECURE=True,
@@ -56,8 +57,18 @@ def create_app():
 
     # === Register Blueprints ===
     from app.routes import (
-        auth, contact, wallet, review, agent, haunter, kyc,
-        dashboard, notifications, favorites, seed
+        auth,
+        contact,
+        wallet,
+        review,
+        agent,
+        haunter,
+        kyc,
+        dashboard,
+        notifications,
+        favorites,
+        seed,
+        transactions,
     )
 
     app.register_blueprint(auth.bp)
@@ -71,6 +82,7 @@ def create_app():
     app.register_blueprint(notifications.bp)
     app.register_blueprint(favorites.bp)
     app.register_blueprint(seed.bp)
+    app.register_blueprint(transactions.bp)
 
     # === Health Check Routes ===
     @app.route("/api/ping")
