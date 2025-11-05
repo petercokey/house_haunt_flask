@@ -45,7 +45,7 @@ def get_authenticated_user():
 # 🔹 Get All Houses (Haunter Feed)
 # ==========================================================
 @bp.route("/houses", methods=["GET"])
-@jwt_required(role="haunter")
+@jwt_required()
 def get_all_houses():
     """
     Fetch all approved houses to show in the haunter's feed.
@@ -87,7 +87,7 @@ def get_all_houses():
 
 # 🔹 Get details of a specific house
 @bp.route("/house/<int:house_id>", methods=["GET"])
-@jwt_required(role="haunter")
+@jwt_required()
 def get_house_details(house_id):
     """Return detailed info of a specific approved house."""
     house = House.query.filter_by(id=house_id, status="approved").first()
@@ -113,7 +113,7 @@ def get_house_details(house_id):
 
 # 🔹 Haunter requests contact info (deducts credits)
 @bp.route("/contact-agent/<int:house_id>", methods=["POST"])
-@jwt_required(role="haunter")
+@jwt_required()
 def contact_agent(house_id):
     """Allow haunter to request an agent’s contact info using wallet credits."""
     user = get_authenticated_user()
@@ -160,7 +160,7 @@ def contact_agent(house_id):
 
 # 🔹 Favorite / Unfavorite a house
 @bp.route("/favorite/<int:house_id>", methods=["POST"])
-@jwt_required(role="haunter")
+@jwt_required()
 def toggle_favorite(house_id):
     """Add or remove a house from haunter's favorites."""
     user = get_authenticated_user()
@@ -186,7 +186,7 @@ def toggle_favorite(house_id):
 
 # 🔹 View all favorites
 @bp.route("/favorites", methods=["GET"])
-@jwt_required(role="haunter")
+@jwt_required()
 def get_favorites():
     """Return all favorite houses of the logged-in haunter."""
     user = get_authenticated_user()
@@ -213,7 +213,7 @@ def get_favorites():
 
 # 🔹 Smart Recommendations System
 @bp.route("/recommendations", methods=["GET"])
-@jwt_required(role="haunter")
+@jwt_required()
 def get_recommendations():
     """Recommend houses based on the haunter’s favorites and contact history."""
     user = get_authenticated_user()
@@ -267,7 +267,7 @@ def get_recommendations():
 
 # 🔹 Trending Houses (Most Popular)
 @bp.route("/trending", methods=["GET"])
-@jwt_required(role="haunter")
+@jwt_required()
 def get_trending_houses():
     """Return top trending houses based on number of favorites and contact requests."""
     from sqlalchemy import func
