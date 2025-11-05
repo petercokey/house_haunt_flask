@@ -62,83 +62,48 @@ def register():
     }), 201
 
 
-# === LOGIN (debug/isolation) ===
 @bp.route("/login", methods=["POST"])
 def login():
-    """
-    Debug login: step-by-step checks to isolate process crash.
-    - Logs progress to Render logs.
-    - Avoids calling potentially crashing helpers until proven safe.
-    """
-    from flask import current_app
-    current_app.logger.info("[LOGIN DEBUG] start")
-
-    data = request.get_json(silent=True) or {}
+    """Login that sets JWT cookie + Flask session safely (Render + Netlify compatible)."""
+    data = request.get_json()
     email = data.get("email")
     password = data.get("password")
-    current_app.logger.info("[LOGIN DEBUG] received payload email=%s", bool(email))
 
-    # Basic validation
     if not email or not password:
-        current_app.logger.info("[LOGIN DEBUG] missing credentials")
         return jsonify({"error": "Missing email or password"}), 400
 
-    # Step 1: find user
-    try:
-        user = User.query.filter_by(email=email).first()
-        current_app.logger.info("[LOGIN DEBUG] user lookup done user_exists=%s", bool(user))
-    except Exception as e:
-        current_app.logger.exception("[LOGIN DEBUG] error during DB lookup")
-        return jsonify({"error": "Server error (lookup)"}), 500
-
-    if not user:
-        current_app.logger.info("[LOGIN DEBUG] invalid credentials - no user")
+    user = User.query.filter_by(email=email).first()
+    if not user or not bcrypt.check_password_hash(user.password, password):
         return jsonify({"error": "Invalid credentials"}), 401
 
-    # Step 2: password check (catch low-level exceptions)
-    try:
-        pw_ok = False
-        # call bcrypt check in try/except
-        try:
-            pw_ok = bcrypt.check_password_hash(user.password, password)
-            current_app.logger.info("[LOGIN DEBUG] bcrypt check completed result=%s", pw_ok)
-        except Exception as e_inner:
-            current_app.logger.exception("[LOGIN DEBUG] bcrypt raised")
-            return jsonify({"error": "Server error (password check)"}), 500
+    # ✅ Create JWT access token (1-day expiry)
+    access_token = create_access_token(
+        identity={"id": user.id, "role": user.role},
+        expires_delta=timedelta(days=1)
+    )
 
-        if not pw_ok:
-            current_app.logger.info("[LOGIN DEBUG] invalid credentials - wrong password")
-            return jsonify({"error": "Invalid credentials"}), 401
-
-    except Exception as e:
-        current_app.logger.exception("[LOGIN DEBUG] unexpected error in password step")
-        return jsonify({"error": "Server error (password)"}), 500
-
-    # Step 3: create token (pure python)
-    try:
-        access_token = create_access_token(
-            identity={"id": user.id, "role": user.role},
-            expires_delta=timedelta(days=1)
-        )
-        current_app.logger.info("[LOGIN DEBUG] token created len=%d", len(access_token))
-    except Exception as e:
-        current_app.logger.exception("[LOGIN DEBUG] token creation failed")
-        return jsonify({"error": "Server error (token)"}), 500
-
-    # Step 4: build response JSON (safe)
+    # ✅ Build success response
     response = jsonify({
-        "message": "Login debug OK",
+        "message": "Login successful",
         "user": {
             "id": user.id,
             "username": user.username,
-            "role": user.role
-        },
-        # include token here ONLY for debugging (temporary)
-        "debug_access_token_present": bool(access_token)
+            "email": user.email,
+            "role": user.role,
+            "credits": user.credits
+        }
     })
 
-    # DO NOT set cookie yet. Log and return.
-    current_app.logger.info("[LOGIN DEBUG] returning response WITHOUT setting cookie")
+    # ✅ Set the JWT cookie securely for Netlify + Render
+    set_access_cookies(response, access_token)
+
+    # ✅ Log user in with Flask-Login (safe guard around double-login)
+    try:
+        login_user(user, remember=True)
+    except Exception as e:
+        # Avoid Gunicorn crash if login_user conflicts with JWT cookie
+        print(f"⚠️ Flask-Login warning: {e}")
+
     return response, 200
 
 
