@@ -95,4 +95,11 @@ def create_app():
         upload_folder = os.path.join(app.root_path, "uploads")
         return send_from_directory(upload_folder, filename)
 
+        # === Debug: Print all registered routes ===
+    print("\n=== Registered Routes ===")
+    for rule in app.url_map.iter_rules():
+        print(f"{rule.endpoint:30s} -> {rule}")
+    print("==========================\n")
+
+
     return app
