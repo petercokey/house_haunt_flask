@@ -55,24 +55,30 @@ def create_app():
     migrate = Migrate(app, db)
 
     # === Register Blueprints ===
+    # === Register Blueprints ===
     from app.routes import (
     auth, contact, wallet, review, agent, haunter, kyc,
     dashboard, notifications, favorites, seed, transactions
-)
+    )
 
+    blueprints = [
+    auth.bp,
+    contact.bp,
+    wallet.bp,
+    review.bp,
+    agent.bp,
+    haunter.bp,
+    kyc.bp,
+    dashboard.bp,
+    notifications.bp,
+    favorites.bp,
+    seed.bp,
+    transactions.bp
+    ]
 
-    app.register_blueprint(auth.bp)
-    app.register_blueprint(contact.bp)
-    app.register_blueprint(wallet.bp)
-    app.register_blueprint(review.bp)
-    app.register_blueprint(agent.bp)
-    app.register_blueprint(haunter.bp)
-    app.register_blueprint(kyc.bp)
-    app.register_blueprint(dashboard.bp)
-    app.register_blueprint(notifications.bp)
-    app.register_blueprint(favorites.bp)
-    app.register_blueprint(seed.bp)
-    app.register_blueprint(transactions.bp)
+    for bp in blueprints:
+        app.register_blueprint(bp)
+
 
 
     # === Health Check Routes ===
