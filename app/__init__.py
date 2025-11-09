@@ -1,9 +1,10 @@
 # app/__init__.py
 from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
+from flask_pymongo import PyMongo
 import os
 from datetime import timedelta
-from app.extensions import db, bcrypt, mail
+from app.extensions import bcrypt, mail  # removed db since MongoDB replaces it
 from flask_migrate import Migrate
 
 def create_app():
@@ -11,10 +12,14 @@ def create_app():
 
     # === Basic Configuration ===
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "super-secret-key")
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-        "DATABASE_URL", "sqlite:///househaunt.db"
+
+    # === MongoDB Configuration ===
+    app.config["MONGO_URI"] = os.getenv(
+        "MONGO_URI",
+        "mongodb+srv://petercokey96_db_user:BURCwBViMbuKEuRh@cluster0.7fpmm0p.mongodb.net/house_haunt?retryWrites=true&w=majority"
     )
-    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    mongo = PyMongo(app)
+    app.mongo = mongo  # store PyMongo instance for access in routes
 
     # === Secure Cookies ===
     app.config.update(
@@ -49,37 +54,35 @@ def create_app():
     )
 
     # === Initialize Extensions ===
-    db.init_app(app)
     bcrypt.init_app(app)
     mail.init_app(app)
-    migrate = Migrate(app, db)
+
+    # You can still keep Migrate for legacy SQLAlchemy routes (optional)
+    # migrate = Migrate(app, db)
 
     # === Register Blueprints ===
-    # === Register Blueprints ===
     from app.routes import (
-    auth, contact, wallet, review, agent, haunter, kyc,
-    dashboard, notifications, favorites, seed, transactions
+        auth, contact, wallet, review, agent, haunter, kyc,
+        dashboard, notifications, favorites, seed, transactions
     )
 
     blueprints = [
-    auth.bp,
-    contact.bp,
-    wallet.bp,
-    review.bp,
-    agent.bp,
-    haunter.bp,
-    kyc.bp,
-    dashboard.bp,
-    notifications.bp,
-    favorites.bp,
-    seed.bp,
-    transactions.bp
+        auth.bp,
+        contact.bp,
+        wallet.bp,
+        review.bp,
+        agent.bp,
+        haunter.bp,
+        kyc.bp,
+        dashboard.bp,
+        notifications.bp,
+        favorites.bp,
+        seed.bp,
+        transactions.bp
     ]
 
     for bp in blueprints:
         app.register_blueprint(bp)
-
-
 
     # === Health Check Routes ===
     @app.route("/api/ping")
@@ -95,11 +98,10 @@ def create_app():
         upload_folder = os.path.join(app.root_path, "uploads")
         return send_from_directory(upload_folder, filename)
 
-        # === Debug: Print all registered routes ===
+    # === Debug: Print all registered routes ===
     print("\n=== Registered Routes ===")
     for rule in app.url_map.iter_rules():
         print(f"{rule.endpoint:30s} -> {rule}")
     print("==========================\n")
-
 
     return app

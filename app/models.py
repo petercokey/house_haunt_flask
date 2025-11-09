@@ -1,189 +1,188 @@
-from app.extensions import db
+# app/models.py
 from datetime import datetime
-from flask_login import UserMixin
+from flask import current_app
+from bson import ObjectId
 
+# 🔹 Utility function to get MongoDB collections
+def get_collection(name):
+    return current_app.mongo.db[name]
 
 # ==========================================================
 # 🔹 USER MODEL
 # ==========================================================
-class User(UserMixin, db.Model):
-    __tablename__ = "user"
+class User:
+    collection = "users"
 
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(20), default="haunter")  # haunter / agent / admin
-    credits = db.Column(db.Integer, default=0)
-    kyc_verified = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    kyc_document = db.Column(db.String(255))
-    is_admin = db.Column(db.Boolean, default=False)
-    
+    @staticmethod
+    def create(data):
+        data["created_at"] = datetime.utcnow()
+        return get_collection(User.collection).insert_one(data)
 
-    # Relationship: Agent owns many houses
-    houses = db.relationship("House", backref="agent", lazy=True)
+    @staticmethod
+    def find_by_email(email):
+        return get_collection(User.collection).find_one({"email": email})
 
-    # ✅ FIXED: Explicit, unambiguous relationships to Review
-    # ✅ Corrected relationships
-    reviews_written = db.relationship(
-        "Review",
-        foreign_keys="Review.haunter_id",
-        backref="haunter",
-        lazy=True
-    )
+    @staticmethod
+    def find_by_id(user_id):
+        return get_collection(User.collection).find_one({"_id": ObjectId(user_id)})
 
-    reviews_received = db.relationship(
-        "Review",
-        foreign_keys="Review.agent_id",
-        backref="agent",
-        lazy=True
-    )
-
+    @staticmethod
+    def update(user_id, updates):
+        return get_collection(User.collection).update_one(
+            {"_id": ObjectId(user_id)}, {"$set": updates}
+        )
 
 
 # ==========================================================
 # 🔹 HOUSE MODEL
 # ==========================================================
-class House(db.Model):
-    __tablename__ = "house"
+class House:
+    collection = "houses"
 
-    id = db.Column(db.Integer, primary_key=True)
-    agent_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    title = db.Column(db.String(120), nullable=False)
-    price = db.Column(db.Float, nullable=False)
-    location = db.Column(db.String(120), nullable=False)
-    description = db.Column(db.Text)
-    image_url = db.Column(db.String(255))
-    image_path = db.Column(db.String(255))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    status = db.Column(db.String(50), default="pending")
+    @staticmethod
+    def create(data):
+        data["created_at"] = datetime.utcnow()
+        data["status"] = data.get("status", "pending")
+        return get_collection(House.collection).insert_one(data)
+
+    @staticmethod
+    def find_all_approved():
+        return list(get_collection(House.collection).find({"status": "approved"}))
+
+    @staticmethod
+    def find_by_id(house_id):
+        return get_collection(House.collection).find_one({"_id": ObjectId(house_id)})
+
+    @staticmethod
+    def update_status(house_id, status):
+        return get_collection(House.collection).update_one(
+            {"_id": ObjectId(house_id)}, {"$set": {"status": status}}
+        )
 
 
 # ==========================================================
 # 🔹 CONTACT REQUEST MODEL
 # ==========================================================
-class ContactRequest(db.Model):
-    __tablename__ = "contact_request"
+class ContactRequest:
+    collection = "contact_requests"
 
-    id = db.Column(db.Integer, primary_key=True)
-    haunter_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    agent_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    house_id = db.Column(db.Integer, db.ForeignKey("house.id"))
-    status = db.Column(db.String(20), default="pending")
-    credits_deducted = db.Column(db.Integer, default=2)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    def __repr__(self):
-        return f"<ContactRequest Haunter={self.haunter_id} Agent={self.agent_id} -{self.credits_deducted}cr>"
+    @staticmethod
+    def create(data):
+        data["created_at"] = datetime.utcnow()
+        data["status"] = "pending"
+        return get_collection(ContactRequest.collection).insert_one(data)
 
 
 # ==========================================================
 # 🔹 FAVORITE MODEL
 # ==========================================================
-class Favorite(db.Model):
-    __tablename__ = "favorites"
+class Favorite:
+    collection = "favorites"
 
-    id = db.Column(db.Integer, primary_key=True)
-    haunter_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    house_id = db.Column(db.Integer, db.ForeignKey("house.id"), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    @staticmethod
+    def toggle(haunter_id, house_id):
+        coll = get_collection(Favorite.collection)
+        existing = coll.find_one({"haunter_id": haunter_id, "house_id": house_id})
+        if existing:
+            coll.delete_one({"_id": existing["_id"]})
+            return {"message": "Removed from favorites"}
+        else:
+            doc = {"haunter_id": haunter_id, "house_id": house_id, "created_at": datetime.utcnow()}
+            coll.insert_one(doc)
+            return {"message": "Added to favorites"}
 
-    haunter = db.relationship("User", backref="favorites", lazy=True)
-    house = db.relationship("House", backref="favorited_by", lazy=True)
-
-    def __repr__(self):
-        return f"<Favorite Haunter={self.haunter_id} House={self.house_id}>"
-
-
-# ==========================================================
-# 🔹 PURCHASE CREDIT MODEL
-# ==========================================================
-class PurchaseCredit(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    haunter_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    amount = db.Column(db.Integer, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    def __repr__(self):
-        return f"<PurchaseCredit {self.haunter_id} +{self.amount}>"
+    @staticmethod
+    def find_all_for_haunter(haunter_id):
+        return list(get_collection(Favorite.collection).find({"haunter_id": haunter_id}))
 
 
 # ==========================================================
 # 🔹 REVIEW MODEL
 # ==========================================================
-class Review(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    agent_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    haunter_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    rating = db.Column(db.Float, nullable=False)
-    comment = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    is_flagged = db.Column(db.Boolean, default=False)
+class Review:
+    collection = "reviews"
 
-    def __repr__(self):
-        return f"<Review {self.id} Agent={self.agent_id} Haunter={self.haunter_id}>"
+    @staticmethod
+    def create(data):
+        data["created_at"] = datetime.utcnow()
+        data["is_flagged"] = False
+        return get_collection(Review.collection).insert_one(data)
+
+    @staticmethod
+    def find_for_agent(agent_id):
+        return list(get_collection(Review.collection).find({"agent_id": agent_id}))
 
 
 # ==========================================================
 # 🔹 KYC MODEL
 # ==========================================================
-class KYC(db.Model):
-    __tablename__ = "kyc"
+class KYC:
+    collection = "kyc"
 
-    id = db.Column(db.Integer, primary_key=True)
-    agent_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    id_type = db.Column(db.String(50))
-    id_number = db.Column(db.String(100))
-    document_image = db.Column(db.String(255))
-    status = db.Column(db.String(20), default="pending")
-    submitted_at = db.Column(db.DateTime, default=db.func.now())
-    is_downloaded = db.Column(db.Boolean, default=False)
-    download_count = db.Column(db.Integer, default=0)
-    last_downloaded_at = db.Column(db.DateTime, default=None)
-    is_reverified = db.Column(db.Boolean, default=False)
-    reverified_at = db.Column(db.DateTime, default=None)
-    reviewer_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
-    file_path = db.Column(db.String(255), nullable=False)
-    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
-    reviewed_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
-    reviewed_at = db.Column(db.DateTime, nullable=True)
-    admin_note = db.Column(db.Text, nullable=True)
+    @staticmethod
+    def create(data):
+        data["submitted_at"] = datetime.utcnow()
+        data["status"] = "pending"
+        return get_collection(KYC.collection).insert_one(data)
+
+    @staticmethod
+    def find_for_agent(agent_id):
+        return get_collection(KYC.collection).find_one({"agent_id": agent_id})
 
 
 # ==========================================================
 # 🔹 NOTIFICATION MODEL
 # ==========================================================
-class Notification(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    message = db.Column(db.String(255), nullable=False)
-    is_read = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    read_at = db.Column(db.DateTime, nullable=True)
+class Notification:
+    collection = "notifications"
 
-    def __repr__(self):
-        return f"<Notification user={self.user_id} message='{self.message}'>"
+    @staticmethod
+    def create(data):
+        data["created_at"] = datetime.utcnow()
+        data["is_read"] = False
+        return get_collection(Notification.collection).insert_one(data)
+
+    @staticmethod
+    def find_for_user(user_id):
+        return list(get_collection(Notification.collection).find({"user_id": user_id}))
 
 
 # ==========================================================
 # 🔹 WALLET MODEL
 # ==========================================================
-class Wallet(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), unique=True)
-    balance = db.Column(db.Float, default=0.0)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+class Wallet:
+    collection = "wallets"
+
+    @staticmethod
+    def get_or_create(user_id):
+        wallet = get_collection(Wallet.collection).find_one({"user_id": user_id})
+        if not wallet:
+            wallet = {"user_id": user_id, "balance": 0.0, "updated_at": datetime.utcnow()}
+            get_collection(Wallet.collection).insert_one(wallet)
+        return wallet
+
+    @staticmethod
+    def update_balance(user_id, amount):
+        wallet = Wallet.get_or_create(user_id)
+        new_balance = float(wallet["balance"]) + float(amount)
+        get_collection(Wallet.collection).update_one(
+            {"user_id": user_id},
+            {"$set": {"balance": new_balance, "updated_at": datetime.utcnow()}},
+        )
+        return new_balance
 
 
 # ==========================================================
 # 🔹 TRANSACTION MODEL
 # ==========================================================
-class Transaction(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    amount = db.Column(db.Float, nullable=False)
-    txn_type = db.Column(db.String(20))  # topup / deduction
-    description = db.Column(db.String(255))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+class Transaction:
+    collection = "transactions"
 
+    @staticmethod
+    def create(data):
+        data["created_at"] = datetime.utcnow()
+        return get_collection(Transaction.collection).insert_one(data)
+
+    @staticmethod
+    def find_for_user(user_id):
+        return list(get_collection(Transaction.collection).find({"user_id": user_id}))
