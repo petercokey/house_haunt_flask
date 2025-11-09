@@ -15,10 +15,11 @@ def create_app():
 
     # === MongoDB Configuration ===
     app.config["MONGO_URI"] = os.getenv(
-        "MONGO_URI",
-        "mongodb+srv://petercokey96_db_user:BURCwBViMbuKEuRh@cluster0.7fpmm0p.mongodb.net/house_haunt?retryWrites=true&w=majority"
-    )
-    mongo = PyMongo(app)
+    "MONGO_URI",
+    "mongodb+srv://petercokey96_db_user:BURCwBViMbuKEuRh@cluster0.7fpmm0p.mongodb.net/househaunt?retryWrites=true&w=majority"
+)
+mongo = PyMongo(app)
+
     app.mongo = mongo  # store PyMongo instance for access in routes
 
     # === Secure Cookies ===
@@ -98,10 +99,6 @@ def create_app():
         upload_folder = os.path.join(app.root_path, "uploads")
         return send_from_directory(upload_folder, filename)
 
-    # === Debug: Print all registered routes ===
-    print("\n=== Registered Routes ===")
-    for rule in app.url_map.iter_rules():
-        print(f"{rule.endpoint:30s} -> {rule}")
-    print("==========================\n")
+    
 
     return app
