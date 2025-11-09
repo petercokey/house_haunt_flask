@@ -45,3 +45,4 @@ gunicorn==23.0.0
 psycopg2-binary==2.9.10
 flask-jwt-extended
 PyJWT==2.9.0
+flask-pymongo
