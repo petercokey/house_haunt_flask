@@ -9,6 +9,14 @@ bp = Blueprint("seed", __name__, url_prefix="/api/seed")
 # Set this in Render environment variables
 SECRET_SEED_KEY = os.getenv("SEED_KEY", "mydevkey123")
 
+@bp.route("/test-mongo")
+def test_mongo():
+    mongo = current_app.mongo
+    mongo.db.test.insert_one({"msg": "Hello Mongo!"})
+    count = mongo.db.test.count_documents({})
+    return jsonify({"message": "Connected successfully!", "total_docs": count}), 200
+
+
 @bp.route("/", methods=["POST"])
 def seed_data():
     """Seed dummy data into Render DB (protected by a secret key)."""

@@ -1,0 +1,189 @@
+[1mdiff --git a/app/routes/agent.py b/app/routes/agent.py[m
+[1mindex d070b71..f9c2f35 100644[m
+[1m--- a/app/routes/agent.py[m
+[1m+++ b/app/routes/agent.py[m
+[36m@@ -1,17 +1,18 @@[m
+[31m-from flask import Blueprint, jsonify, request, current_app[m
+[31m-from flask_login import login_required, current_user[m
+[32m+[m[32m# app/routes/agent.py[m
+[32m+[m
+[32m+[m[32mfrom flask import Blueprint, jsonify, request, current_app, g[m
+ from werkzeug.utils import secure_filename[m
+ from datetime import datetime[m
+[31m-from app.models import db, House, User, Transaction, ContactRequest, Notification, KYC, ContactRequest  # ✅ Added User + Notification[m
+[31m-from app.utils.decorators import role_required, admin_required  # ✅ Combined imports[m
+[31m-from app.utils.auth_helpers import jwt_or_login_required[m
+[31m-from app.extensions import bcrypt[m
+ import os[m
+[31m-[m
+[32m+[m[32mfrom app.models import db, House, User, Transaction, ContactRequest, Notification, KYC[m
+[32m+[m[32mfrom app.utils.auth_helpers import jwt_required[m
+[32m+[m[32mfrom app.utils.decorators import role_required, admin_required[m
+[32m+[m[32mfrom app.extensions import bcrypt[m
+ [m
+ [m
+ bp = Blueprint("agent", __name__, url_prefix="/api/agent")[m
+ [m
+[32m+[m
+ # 🟢 Test route[m
+ @bp.route("/ping")[m
+ def ping():[m
+[36m@@ -27,12 +28,17 @@[m [mdef allowed_file(filename):[m
+     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS[m
+ [m
+ [m
+[32m+[m[32m# ==========================================================[m
+[32m+[m[32m# 🔹 AGENT HOUSE MANAGEMENT[m
+[32m+[m[32m# ==========================================================[m
+[32m+[m
+ # 🔹 Agent creates a new house listing[m
+ @bp.route("/create-house", methods=["POST"])[m
+[31m-@login_required[m
+[32m+[m[32m@jwt_required()[m
+ @role_required("agent")[m
+ def create_house():[m
+     """Allow agents to create new house listings with image upload."""[m
+[32m+[m[32m    user = g.user[m
+ [m
+     title = request.form.get("title")[m
+     description = request.form.get("description")[m
+[36m@@ -47,7 +53,6 @@[m [mdef create_house():[m
+         return jsonify({"error": "House image is required."}), 400[m
+ [m
+     file = request.files["image"][m
+[31m-[m
+     if file.filename == "":[m
+         return jsonify({"error": "No selected file."}), 400[m
+ [m
+[36m@@ -58,21 +63,21 @@[m [mdef create_house():[m
+     folder = os.path.join(current_app.root_path, "uploads", "house_images")[m
+     os.makedirs(folder, exist_ok=True)[m
+ [m
+[31m-    # Save image with a safe filename[m
+[31m-    filename = secure_filename(f"{current_user.id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{file.filename}")[m
+[32m+[m[32m    # Save image with safe filename[m
+[32m+[m[32m    filename = secure_filename(f"{user.id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{file.filename}")[m
+     image_path = os.path.join(folder, filename)[m
+     file.save(image_path)[m
+ [m
+     # ✅ Save house record in DB[m
+     house = House([m
+[31m-        agent_id=current_user.id,[m
+[32m+[m[32m        agent_id=user.id,[m
+         title=title,[m
+         description=description,[m
+         location=location,[m
+         price=float(price),[m
+         image_path=image_path,[m
+         created_at=datetime.utcnow(),[m
+[31m-        status="pending"  # ✅ newly added for moderation[m
+[32m+[m[32m        status="pending"[m
+     )[m
+ [m
+     db.session.add(house)[m
+[36m@@ -92,23 +97,23 @@[m [mdef create_house():[m
+ [m
+ # 🔹 Get all houses by logged-in agent[m
+ @bp.route("/my-houses", methods=["GET"])[m
+[31m-@jwt_or_login_required(role="agent")[m
+[32m+[m[32m@jwt_required()[m
+[32m+[m[32m@role_required("agent")[m
+ def my_houses():[m
+     """Return all houses created by the logged-in agent."""[m
+[31m-    houses = House.query.filter_by(agent_id=current_user.id).order_by(House.created_at.desc()).all()[m
+[31m-[m
+[31m-    results = [][m
+[31m-    for h in houses:[m
+[31m-        results.append({[m
+[31m-            "id": h.id,[m
+[31m-            "title": h.title,[m
+[31m-            "description": h.description,[m
+[31m-            "location": h.location,[m
+[31m-            "price": h.price,[m
+[31m-            "image_url": h.image_path,[m
+[31m-            "status": getattr(h, "status", "pending"),[m
+[31m-            "created_at": h.created_at[m
+[31m-        })[m
+[32m+[m[32m    user = g.user[m
+[32m+[m[32m    houses = House.query.filter_by(agent_id=user.id).order_by(House.created_at.desc()).all()[m
+[32m+[m
+[32m+[m[32m    results = [{[m
+[32m+[m[32m        "id": h.id,[m
+[32m+[m[32m        "title": h.title,[m
+[32m+[m[32m        "description": h.description,[m
+[32m+[m[32m        "location": h.location,[m
+[32m+[m[32m        "price": h.price,[m
+[32m+[m[32m        "image_url": h.image_path,[m
+[32m+[m[32m        "status": getattr(h, "status", "pending"),[m
+[32m+[m[32m        "created_at": h.created_at[m
+[32m+[m[32m    } for h in houses][m
+ [m
+     return jsonify({[m
+         "total_houses": len(results),[m
+[36m@@ -118,11 +123,12 @@[m [mdef my_houses():[m
+ [m
+ # 🔹 Edit an existing house listing[m
+ @bp.route("/edit-house/<int:house_id>", methods=["PUT"])[m
+[31m-@login_required[m
+[32m+[m[32m@jwt_required()[m
+ @role_required("agent")[m
+ def edit_house(house_id):[m
+     """Allow agents to edit their own house listing."""[m
+[31m-    house = House.query.filter_by(id=house_id, agent_id=current_user.id).first()[m
+[32m+[m[32m    user = g.user[m
+[32m+[m[32m    house = House.query.filter_by(id=house_id, agent_id=user.id).first()[m
+ [m
+     if not house:[m
+         return jsonify({"error": "House not found or unauthorized."}), 404[m
+[36m@@ -132,13 +138,12 @@[m [mdef edit_house(house_id):[m
+     location = request.form.get("location", house.location)[m
+     price = request.form.get("price", house.price)[m
+ [m
+[31m-    # ✅ Update optional fields[m
+     house.title = title[m
+     house.description = description[m
+     house.location = location[m
+     house.price = float(price)[m
+ [m
+[31m-    # ✅ Handle optional new image upload[m
+[32m+[m[32m    # Optional new image upload[m
+     if "image" in request.files:[m
+         file = request.files["image"][m
+         if file and file.filename:[m
+[36m@@ -147,7 +152,7 @@[m [mdef edit_house(house_id):[m
+ [m
+             folder = os.path.join(current_app.root_path, "uploads", "house_images")[m
+             os.makedirs(folder, exist_ok=True)[m
+[31m-            filename = secure_filename(f"{current_user.id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{file.filename}")[m
+[32m+[m[32m            filename = secure_filename(f"{user.id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{file.filename}")[m
+             image_path = os.path.join(folder, filename)[m
+             file.save(image_path)[m
+             house.image_path = image_path[m
+[36m@@ -168,11 +173,12 @@[m [mdef edit_house(house_id):[m
+ [m
+ # 🔹 Delete a house[m
+ @bp.route("/delete-house/<int:house_id>", methods=["DELETE"])[m
+[31m-@login_required[m
+[32m+[m[32m@jwt_required()[m
+ @role_required("agent")[m
+ def delete_house(house_id):[m
+     """Allow agents to delete their own house listing."""[m
+[31m-    house = House.query.filter_by(id=house_id, agent_id=current_user.id).first()[m
+[32m+[m[32m    user = g.user[m
+[32m+[m[32m    house = House.query.filter_by(id=house_id, agent_id=user.id).first()[m
+ [m
+     if not house:[m
+         return jsonify({"error": "House not found or unauthorized."}), 404[m
+[36m@@ -187,15 +193,14 @@[m [mdef delete_house(house_id):[m
+ # 🔹 ADMIN HOUSE MANAGEMENT[m
+ # ==========================================================[m
+ [m
+[31m-# 🏠 Get all house listings (for admin)[m
+ @bp.route("/all-houses", methods=["GET"])[m
+[31m-@login_required[m
+[32m+[m[32m@jwt_required()[m
+ @admin_required[m
+ def all_houses():[m
+     """Admin view of all house listings."""[m
+     houses = House.query.order_by(House.created_at.desc()).all()[m
+
