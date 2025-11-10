@@ -17,8 +17,8 @@ def create_app():
     app.config["MONGO_URI"] = os.getenv(
     "MONGO_URI",
     "mongodb+srv://petercokey96_db_user:BURCwBViMbuKEuRh@cluster0.7fpmm0p.mongodb.net/househaunt?retryWrites=true&w=majority"
-)
-mongo = PyMongo(app)
+    )
+    mongo = PyMongo(app)
 
     app.mongo = mongo  # store PyMongo instance for access in routes
 
