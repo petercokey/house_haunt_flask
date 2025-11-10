@@ -7,7 +7,6 @@ from app.utils.auth_helpers import jwt_required
 from app.utils.decorators import role_required, admin_required
 
 from app.models import (
-    db,
     House,
     User,
     Transaction,
@@ -15,6 +14,7 @@ from app.models import (
     Notification,
     KYC
 )
+
 
 bp = Blueprint("agent", __name__, url_prefix="/api/agent")
 
