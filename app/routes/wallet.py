@@ -1,146 +1,92 @@
-﻿from flask import Blueprint, jsonify, request, g
+from flask import Blueprint, jsonify, request, g
 from datetime import datetime
- Wallet, Transaction, User, House
+from bson import ObjectId
+from app import mongo
 from app.utils.auth_helpers import jwt_required
 
 bp = Blueprint("wallet", __name__, url_prefix="/api/wallet")
 
 
-# ðŸŸ¢ Health check
 @bp.route("/ping")
 def ping():
-    return jsonify({"message": "wallet blueprint active"}), 200
+    return jsonify({"message": "Wallet blueprint active"}), 200
 
-
-# ==========================================================
-# ðŸ”¹ View wallet balance
-# ==========================================================
+# View wallet balance
 @bp.route("/balance", methods=["GET"])
 @jwt_required()
 def get_wallet_balance():
-    user = g.user
-    wallet = Wallet.query.filter_by(user_id=user.id).first()
+    user_id = g.user["_id"]
+    wallet = mongo.db.wallets.find_one({"user_id": user_id})
 
     if not wallet:
         return jsonify({"balance": 0, "message": "Wallet not found"}), 404
 
     return jsonify({
-        "user_id": user.id,
-        "username": user.username,
-        "balance": wallet.balance
+        "user_id": str(user_id),
+        "username": g.user["username"],
+        "balance": wallet.get("balance", 0)
     }), 200
 
-
-# ==========================================================
-# ðŸ”¹ Top up wallet
-# ==========================================================
+# Top up wallet
 @bp.route("/topup", methods=["POST"])
 @jwt_required()
 def top_up_wallet():
-    user = g.user
+    user_id = g.user["_id"]
     data = request.get_json() or {}
     amount = data.get("amount")
 
     if not amount or amount <= 0:
         return jsonify({"error": "Invalid top-up amount"}), 400
 
-    wallet = Wallet.query.filter_by(user_id=user.id).first()
-    if not wallet:
-        wallet = Wallet(user_id=user.id, balance=0)
-        db.session.add(wallet)
+    wallet = mongo.db.wallets.find_one({"user_id": user_id})
+    if wallet:
+        new_balance = wallet.get("balance", 0) + amount
+        mongo.db.wallets.update_one({"_id": wallet["_id"]}, {"$set": {"balance": new_balance}})
+    else:
+        new_balance = amount
+        mongo.db.wallets.insert_one({"user_id": user_id, "balance": new_balance})
 
-    wallet.balance += amount
-
-    txn = Transaction(
-        user_id=user.id,
-        amount=amount,
-        txn_type="credit",
-        description=f"Wallet top-up of {amount}",
-        created_at=datetime.utcnow(),
-    )
-
-    db.session.add(txn)
-    db.session.commit()
+    mongo.db.transactions.insert_one({
+        "user_id": user_id,
+        "amount": amount,
+        "txn_type": "credit",
+        "description": f"Wallet top-up of {amount}",
+        "created_at": datetime.utcnow()
+    })
 
     return jsonify({
         "message": f"Wallet topped up with {amount}",
-        "new_balance": wallet.balance
+        "new_balance": new_balance
     }), 200
 
-
-# ==========================================================
-# ðŸ”¹ View all approved houses (for haunters)
-# ==========================================================
+# View all approved houses (for haunters)
 @bp.route("/houses", methods=["GET"])
 @jwt_required()
 def get_all_houses():
-    """
-    Return all approved houses available for haunters,
-    with support for search, filtering, and sorting.
-    """
-    user = g.user
-    if user.role != "haunter":
+    if g.user.get("role") != "haunter":
         return jsonify({"error": "Access denied. Only haunters allowed."}), 403
 
-    query = House.query.filter_by(status="approved")
-
-    # ðŸ” Optional search and filters
-    search = request.args.get("search", "").strip().lower()
-    location = request.args.get("location", "").strip().lower()
-    min_price = request.args.get("min_price", type=float)
-    max_price = request.args.get("max_price", type=float)
-    sort_by = request.args.get("sort_by", "newest")  # options: newest, price_asc, price_desc
-
-    # ðŸ”¹ Apply filters
-    if search:
-        query = query.filter(
-            db.or_(
-                House.title.ilike(f"%{search}%"),
-                House.description.ilike(f"%{search}%")
-            )
-        )
-    if location:
-        query = query.filter(House.location.ilike(f"%{location}%"))
-    if min_price is not None:
-        query = query.filter(House.price >= min_price)
-    if max_price is not None:
-        query = query.filter(House.price <= max_price)
-
-    # ðŸ”¹ Sorting
-    if sort_by == "price_asc":
-        query = query.order_by(House.price.asc())
-    elif sort_by == "price_desc":
-        query = query.order_by(House.price.desc())
-    else:
-        query = query.order_by(House.created_at.desc())
-
-    houses = query.all()
+    query = {"status": "approved"}
+    houses = list(mongo.db.houses.find(query).sort("created_at", -1))
 
     results = []
     for h in houses:
-        agent = User.query.get(h.agent_id)
+        agent = mongo.db.users.find_one({"_id": h.get("agent_id")})
         results.append({
-            "id": h.id,
-            "title": h.title,
-            "description": h.description,
-            "location": h.location,
-            "price": h.price,
-            "image_url": h.image_path,
+            "id": str(h["_id"]),
+            "title": h.get("title"),
+            "description": h.get("description"),
+            "location": h.get("location"),
+            "price": h.get("price"),
+            "image_url": h.get("image_path"),
             "agent": {
-                "id": agent.id if agent else None,
-                "name": agent.username if agent else "Unknown Agent"
+                "id": str(agent["_id"]) if agent else None,
+                "name": agent["username"] if agent else "Unknown Agent"
             },
-            "created_at": h.created_at
+            "created_at": h.get("created_at")
         })
 
     return jsonify({
         "total_results": len(results),
-        "filters": {
-            "search": search,
-            "location": location,
-            "min_price": min_price,
-            "max_price": max_price,
-            "sort_by": sort_by
-        },
         "houses": results
     }), 200
