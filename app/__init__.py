@@ -2,10 +2,16 @@
 from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_pymongo import PyMongo
-import os
 from datetime import timedelta
-from app.extensions import bcrypt, mail  # removed db since MongoDB replaces it
-from flask_migrate import Migrate
+from flask_bcrypt import Bcrypt
+from flask_mail import Mail
+import os
+
+
+mongo = PyMongo()
+bcrypt = Bcrypt()
+mail = Mail()
+
 
 def create_app():
     app = Flask(__name__)
@@ -15,18 +21,17 @@ def create_app():
 
     # === MongoDB Configuration ===
     app.config["MONGO_URI"] = os.getenv(
-    "MONGO_URI",
-    "mongodb+srv://petercokey96_db_user:BURCwBViMbuKEuRh@cluster0.7fpmm0p.mongodb.net/househaunt?retryWrites=true&w=majority"
+        "MONGO_URI",
+        "mongodb+srv://petercokey96_db_user:BURCwBViMbuKEuRh@cluster0.7fpmm0p.mongodb.net/househaunt?retryWrites=true&w=majority"
     )
-    mongo = PyMongo(app)
-
-    app.mongo = mongo  # store PyMongo instance for access in routes
+    mongo.init_app(app)
 
     # === Secure Cookies ===
     app.config.update(
         SESSION_COOKIE_SAMESITE="None",
         SESSION_COOKIE_SECURE=True,
         SESSION_COOKIE_HTTPONLY=True,
+        PERMANENT_SESSION_LIFETIME=timedelta(days=7),
     )
 
     # === Mail Configuration ===
@@ -37,6 +42,10 @@ def create_app():
         MAIL_USERNAME=os.getenv("MAIL_USERNAME"),
         MAIL_PASSWORD=os.getenv("MAIL_PASSWORD"),
     )
+
+    # === Initialize Extensions ===
+    bcrypt.init_app(app)
+    mail.init_app(app)
 
     # === CORS Configuration ===
     CORS(
@@ -53,13 +62,6 @@ def create_app():
             }
         },
     )
-
-    # === Initialize Extensions ===
-    bcrypt.init_app(app)
-    mail.init_app(app)
-
-    # You can still keep Migrate for legacy SQLAlchemy routes (optional)
-    # migrate = Migrate(app, db)
 
     # === Register Blueprints ===
     from app.routes import (
@@ -98,7 +100,10 @@ def create_app():
     def serve_upload(filename):
         upload_folder = os.path.join(app.root_path, "uploads")
         return send_from_directory(upload_folder, filename)
-
     
+
+    # force rebuild comment
+
+    app.mongo = mongo
 
     return app
