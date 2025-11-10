@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+﻿from flask import Blueprint, jsonify
 from flask_login import login_required, current_user
 from app.models import User, Wallet, Review, ContactRequest, KYC, House
 from app import db
@@ -8,13 +8,13 @@ from sqlalchemy import func
 
 bp = Blueprint("dashboard", __name__, url_prefix="/api/dashboard")
 
-# 🟢 Test route
+# ðŸŸ¢ Test route
 @bp.route("/ping")
 def ping():
     return jsonify({"message": "dashboard blueprint active!"}), 200
 
 
-# 🔹 Agent Dashboard
+# ðŸ”¹ Agent Dashboard
 @bp.route("/agent", methods=["GET"])
 @login_required
 @role_required("agent")
@@ -89,7 +89,7 @@ def agent_dashboard():
     }), 200
 
 
-# 🔹 Haunter Dashboard (Basic)
+# ðŸ”¹ Haunter Dashboard (Basic)
 @bp.route("/haunter", methods=["GET"])
 @login_required
 @role_required("haunter")
@@ -141,26 +141,26 @@ def haunter_dashboard():
     }), 200
 
 
-# 🔹 Enhanced Haunter Insights Dashboard
+# ðŸ”¹ Enhanced Haunter Insights Dashboard
 @bp.route("/haunter/insights", methods=["GET"])
 @login_required
 @role_required("haunter")
 def haunter_insights():
     """Advanced Haunter analytics and dashboard insights."""
 
-    # 1️⃣ Basic Info
+    # 1ï¸âƒ£ Basic Info
     haunter_info = {
         "id": current_user.id,
         "username": current_user.username,
         "email": current_user.email,
     }
 
-    # 2️⃣ Contact Requests Summary
+    # 2ï¸âƒ£ Contact Requests Summary
     requests = ContactRequest.query.filter_by(haunter_id=current_user.id).all()
     total_requests = len(requests)
     unique_agents = len(set(r.agent_id for r in requests))
 
-    # 3️⃣ Top Agents Contacted
+    # 3ï¸âƒ£ Top Agents Contacted
     top_agents = (
         db.session.query(User.username, func.count(ContactRequest.id).label("times_contacted"))
         .join(ContactRequest, ContactRequest.agent_id == User.id)
@@ -172,12 +172,12 @@ def haunter_insights():
     )
     top_agents_list = [{"agent": a[0], "times_contacted": int(a[1])} for a in top_agents]
 
-    # 4️⃣ Review Stats
+    # 4ï¸âƒ£ Review Stats
     reviews = Review.query.filter_by(haunter_id=current_user.id).all()
     total_reviews = len(reviews)
     avg_rating_given = round(sum(r.rating for r in reviews) / total_reviews, 2) if total_reviews else 0
 
-    # 5️⃣ Recent Activity Log
+    # 5ï¸âƒ£ Recent Activity Log
     activity_log = []
     for r in requests[-3:]:
         house = House.query.get(r.house_id)
@@ -209,7 +209,7 @@ def haunter_insights():
     }), 200
 
 
-# 🔹 Admin Dashboard
+# ðŸ”¹ Admin Dashboard
 @bp.route("/admin", methods=["GET"])
 @login_required
 @admin_required

@@ -1,4 +1,4 @@
-# app/routes/seed.py
+﻿# app/routes/seed.py
 from flask import Blueprint, jsonify, request
  User, House, Review
 from werkzeug.security import generate_password_hash
@@ -50,7 +50,7 @@ def seed_data():
             description="Nice 2-bedroom apartment in Ikeja",
             location="Ikeja",
             price=150000,
-            agent_id=user2.id   # ✅ make sure to use agent_id not owner_id
+            agent_id=user2.id   # âœ… make sure to use agent_id not owner_id
         )
 
         house2 = House(
@@ -74,10 +74,10 @@ def seed_data():
         db.session.add(review1)
         db.session.commit()
 
-        return jsonify({"message": "✅ Dummy data seeded successfully!"}), 201
+        return jsonify({"message": "âœ… Dummy data seeded successfully!"}), 201
 
     except Exception as e:
         import traceback
-        print("❌ ERROR seeding data:", e)
-        traceback.print_exc()   # 👈 this line prints the full error to Render logs
+        print("âŒ ERROR seeding data:", e)
+        traceback.print_exc()   # ðŸ‘ˆ this line prints the full error to Render logs
         return jsonify({"error": str(e)}), 500

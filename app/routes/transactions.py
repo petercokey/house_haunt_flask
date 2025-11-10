@@ -1,18 +1,18 @@
-from flask import Blueprint, jsonify, g
+﻿from flask import Blueprint, jsonify, g
  Transaction
 from app.utils.auth_helpers import jwt_required
 
 bp = Blueprint("transactions", __name__, url_prefix="/api/transactions")
 
 
-# 🟢 Health check
+# ðŸŸ¢ Health check
 @bp.route("/ping")
 def ping():
     return jsonify({"message": "Transactions blueprint active!"}), 200
 
 
 # ==========================================================
-# 🔹 View all transactions for the logged-in user
+# ðŸ”¹ View all transactions for the logged-in user
 # ==========================================================
 @bp.route("/", methods=["GET"])
 @jwt_required()
@@ -52,7 +52,7 @@ def get_transactions():
 
 
 # ==========================================================
-# 🔹 Delete all transaction history
+# ðŸ”¹ Delete all transaction history
 # ==========================================================
 @bp.route("/clear", methods=["DELETE"])
 @jwt_required()

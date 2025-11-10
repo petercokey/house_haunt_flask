@@ -1,14 +1,14 @@
-# app/models.py
+﻿# app/models.py
 from datetime import datetime
 from flask import current_app
 from bson import ObjectId
 
-# 🔹 Utility function to get MongoDB collections
+# ðŸ”¹ Utility function to get MongoDB collections
 def get_collection(name):
     return current_app.mongo.db[name]
 
 # ==========================================================
-# 🔹 USER MODEL
+# ðŸ”¹ USER MODEL
 # ==========================================================
 class User:
     collection = "users"
@@ -34,7 +34,7 @@ class User:
 
 
 # ==========================================================
-# 🔹 HOUSE MODEL
+# ðŸ”¹ HOUSE MODEL
 # ==========================================================
 class House:
     collection = "houses"
@@ -61,7 +61,7 @@ class House:
 
 
 # ==========================================================
-# 🔹 CONTACT REQUEST MODEL
+# ðŸ”¹ CONTACT REQUEST MODEL
 # ==========================================================
 class ContactRequest:
     collection = "contact_requests"
@@ -74,7 +74,7 @@ class ContactRequest:
 
 
 # ==========================================================
-# 🔹 FAVORITE MODEL
+# ðŸ”¹ FAVORITE MODEL
 # ==========================================================
 class Favorite:
     collection = "favorites"
@@ -97,7 +97,7 @@ class Favorite:
 
 
 # ==========================================================
-# 🔹 REVIEW MODEL
+# ðŸ”¹ REVIEW MODEL
 # ==========================================================
 class Review:
     collection = "reviews"
@@ -114,7 +114,7 @@ class Review:
 
 
 # ==========================================================
-# 🔹 KYC MODEL
+# ðŸ”¹ KYC MODEL
 # ==========================================================
 class KYC:
     collection = "kyc"
@@ -131,7 +131,7 @@ class KYC:
 
 
 # ==========================================================
-# 🔹 NOTIFICATION MODEL
+# ðŸ”¹ NOTIFICATION MODEL
 # ==========================================================
 class Notification:
     collection = "notifications"
@@ -148,7 +148,7 @@ class Notification:
 
 
 # ==========================================================
-# 🔹 WALLET MODEL
+# ðŸ”¹ WALLET MODEL
 # ==========================================================
 class Wallet:
     collection = "wallets"
@@ -173,7 +173,7 @@ class Wallet:
 
 
 # ==========================================================
-# 🔹 TRANSACTION MODEL
+# ðŸ”¹ TRANSACTION MODEL
 # ==========================================================
 class Transaction:
     collection = "transactions"

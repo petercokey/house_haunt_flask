@@ -1,4 +1,4 @@
-# app/routes/auth.py
+﻿# app/routes/auth.py
 from flask import Blueprint, request, jsonify, make_response, g, current_app
 from datetime import datetime, timedelta
 from app.extensions import bcrypt

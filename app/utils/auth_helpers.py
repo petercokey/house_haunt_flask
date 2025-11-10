@@ -1,15 +1,15 @@
-# app/utils/auth_helpers.py
+﻿# app/utils/auth_helpers.py
 from functools import wraps
 from flask import request, jsonify, g
 import jwt, os
 from app.models import User
 
-# 🔹 Secret key for JWT decoding
+# ðŸ”¹ Secret key for JWT decoding
 SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key")
 
 
 # ==========================================================
-# 🔹 Core JWT Authentication Decorator
+# ðŸ”¹ Core JWT Authentication Decorator
 # ==========================================================
 def jwt_required():
     """
@@ -42,7 +42,7 @@ def jwt_required():
 
 
 # ==========================================================
-# 🔹 Role-based Access Control Decorator
+# ðŸ”¹ Role-based Access Control Decorator
 # ==========================================================
 def role_required(role_name):
     """
@@ -68,7 +68,7 @@ def role_required(role_name):
 
 
 # ==========================================================
-# 🔹 Utility: get_authenticated_user()
+# ðŸ”¹ Utility: get_authenticated_user()
 # ==========================================================
 def get_authenticated_user():
     """

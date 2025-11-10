@@ -1,4 +1,4 @@
-from flask_mail import Message
+﻿from flask_mail import Message
 from app import mail
 
 def send_email(subject, recipients, body):

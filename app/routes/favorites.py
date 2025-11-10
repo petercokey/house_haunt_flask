@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+﻿from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
  Favorite, House, User
 from datetime import datetime
@@ -7,13 +7,13 @@ from app.utils.decorators import role_required
 bp = Blueprint("favorites", __name__, url_prefix="/api/favorites")
 
 
-# 🟢 Test route
+# ðŸŸ¢ Test route
 @bp.route("/ping")
 def ping():
     return jsonify({"message": "Favorites blueprint active!"}), 200
 
 
-# 🔹 Add a house to haunter's favorites
+# ðŸ”¹ Add a house to haunter's favorites
 @bp.route("/add/<int:house_id>", methods=["POST"])
 @login_required
 @role_required("haunter")
@@ -35,12 +35,12 @@ def add_favorite(house_id):
     return jsonify({"message": f"House '{house.title}' added to favorites."}), 201
 
 
-# 🔹 Remove a favorite
+# ðŸ”¹ Remove a favorite
 @bp.route("/remove/<int:house_id>", methods=["DELETE"])
 @login_required
 @role_required("haunter")
 def remove_favorite(house_id):
-    """Remove a house from haunter’s favorites."""
+    """Remove a house from haunterâ€™s favorites."""
     fav = Favorite.query.filter_by(user_id=current_user.id, house_id=house_id).first()
     if not fav:
         return jsonify({"error": "Favorite not found."}), 404
@@ -50,7 +50,7 @@ def remove_favorite(house_id):
     return jsonify({"message": "Removed from favorites."}), 200
 
 
-# 🔹 Get all saved favorites
+# ðŸ”¹ Get all saved favorites
 @bp.route("/", methods=["GET"])
 @login_required
 @role_required("haunter")

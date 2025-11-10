@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+﻿from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 from app.utils.decorators import role_required
  Review, ContactRequest, User
@@ -32,7 +32,7 @@ def create_review():
     ).first()
 
     if not valid_request:
-        return jsonify({"error": "You can only review agents you’ve contacted"}), 403
+        return jsonify({"error": "You can only review agents youâ€™ve contacted"}), 403
 
     review = Review(
         haunter_id=current_user.id,
@@ -42,7 +42,7 @@ def create_review():
     )
     db.session.add(review)
     db.session.commit()
-    create_notification(agent_id, f"You received a new review from {current_user.username} ⭐")
+    create_notification(agent_id, f"You received a new review from {current_user.username} â­")
 
 
     return jsonify({

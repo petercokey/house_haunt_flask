@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+﻿from flask import Blueprint, jsonify, request
 from flask_login import current_user
 from app.models import (
     db,
@@ -21,7 +21,7 @@ from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 bp = Blueprint("haunter", __name__, url_prefix="/api/haunter")
 
 
-# 🟢 Test route
+# ðŸŸ¢ Test route
 @bp.route("/ping")
 def ping():
     return jsonify({"message": "haunter blueprint active!"}), 200
@@ -40,9 +40,9 @@ def get_authenticated_user():
         return None
 
 
-# 🔹 Get all approved houses (with optional search & filters)
+# ðŸ”¹ Get all approved houses (with optional search & filters)
 # ==========================================================
-# 🔹 Get All Houses (Haunter Feed)
+# ðŸ”¹ Get All Houses (Haunter Feed)
 # ==========================================================
 @bp.route("/houses", methods=["GET"])
 @jwt_required()
@@ -81,11 +81,11 @@ def get_all_houses():
         return jsonify({"houses": result}), 200
 
     except Exception as e:
-        print("🔥 Error fetching houses:", e)
+        print("ðŸ”¥ Error fetching houses:", e)
         return jsonify({"error": "Failed to fetch houses"}), 500
 
 
-# 🔹 Get details of a specific house
+# ðŸ”¹ Get details of a specific house
 @bp.route("/house/<int:house_id>", methods=["GET"])
 @jwt_required()
 def get_house_details(house_id):
@@ -111,11 +111,11 @@ def get_house_details(house_id):
     }), 200
 
 
-# 🔹 Haunter requests contact info (deducts credits)
+# ðŸ”¹ Haunter requests contact info (deducts credits)
 @bp.route("/contact-agent/<int:house_id>", methods=["POST"])
 @jwt_required()
 def contact_agent(house_id):
-    """Allow haunter to request an agent’s contact info using wallet credits."""
+    """Allow haunter to request an agentâ€™s contact info using wallet credits."""
     user = get_authenticated_user()
     if not user:
         return jsonify({"error": "Unauthorized"}), 401
@@ -158,7 +158,7 @@ def contact_agent(house_id):
     }), 201
 
 
-# 🔹 Favorite / Unfavorite a house
+# ðŸ”¹ Favorite / Unfavorite a house
 @bp.route("/favorite/<int:house_id>", methods=["POST"])
 @jwt_required()
 def toggle_favorite(house_id):
@@ -184,7 +184,7 @@ def toggle_favorite(house_id):
         return jsonify({"message": f"Added '{house.title}' to favorites."}), 201
 
 
-# 🔹 View all favorites
+# ðŸ”¹ View all favorites
 @bp.route("/favorites", methods=["GET"])
 @jwt_required()
 def get_favorites():
@@ -211,11 +211,11 @@ def get_favorites():
     }), 200
 
 
-# 🔹 Smart Recommendations System
+# ðŸ”¹ Smart Recommendations System
 @bp.route("/recommendations", methods=["GET"])
 @jwt_required()
 def get_recommendations():
-    """Recommend houses based on the haunter’s favorites and contact history."""
+    """Recommend houses based on the haunterâ€™s favorites and contact history."""
     user = get_authenticated_user()
     if not user:
         return jsonify({"error": "Unauthorized"}), 401
@@ -225,7 +225,7 @@ def get_recommendations():
 
     interacted_ids = set(favorite_house_ids + contacted_house_ids)
     if not interacted_ids:
-        return jsonify({"message": "No activity yet — explore houses to get personalized recommendations."}), 200
+        return jsonify({"message": "No activity yet â€” explore houses to get personalized recommendations."}), 200
 
     reference_houses = House.query.filter(House.id.in_(interacted_ids)).all()
     recommended_query = House.query.filter(House.status == "approved", ~House.id.in_(interacted_ids))
@@ -265,7 +265,7 @@ def get_recommendations():
     }), 200
 
 
-# 🔹 Trending Houses (Most Popular)
+# ðŸ”¹ Trending Houses (Most Popular)
 @bp.route("/trending", methods=["GET"])
 @jwt_required()
 def get_trending_houses():

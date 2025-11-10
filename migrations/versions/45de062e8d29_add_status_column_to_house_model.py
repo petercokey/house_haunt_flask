@@ -1,4 +1,4 @@
-"""Add status column to House model
+﻿"""Add status column to House model
 
 Revision ID: 45de062e8d29
 Revises: b149b386e4c0

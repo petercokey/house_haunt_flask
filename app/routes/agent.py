@@ -1,4 +1,4 @@
-# app/routes/agent.py
+﻿# app/routes/agent.py
 
 from flask import Blueprint, jsonify, request, current_app, g
 from werkzeug.utils import secure_filename
@@ -13,13 +13,13 @@ from app.extensions import bcrypt
 bp = Blueprint("agent", __name__, url_prefix="/api/agent")
 
 
-# 🟢 Test route
+# ðŸŸ¢ Test route
 @bp.route("/ping")
 def ping():
     return jsonify({"message": "agent blueprint active!"}), 200
 
 
-# ✅ Allowed file types for house images
+# âœ… Allowed file types for house images
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 
 
@@ -29,10 +29,10 @@ def allowed_file(filename):
 
 
 # ==========================================================
-# 🔹 AGENT HOUSE MANAGEMENT
+# ðŸ”¹ AGENT HOUSE MANAGEMENT
 # ==========================================================
 
-# 🔹 Agent creates a new house listing
+# ðŸ”¹ Agent creates a new house listing
 @bp.route("/create-house", methods=["POST"])
 @jwt_required()
 @role_required("agent")
@@ -48,7 +48,7 @@ def create_house():
     if not all([title, description, location, price]):
         return jsonify({"error": "All fields (title, description, location, price) are required."}), 400
 
-    # 🔹 Handle image upload
+    # ðŸ”¹ Handle image upload
     if "image" not in request.files:
         return jsonify({"error": "House image is required."}), 400
 
@@ -68,7 +68,7 @@ def create_house():
     image_path = os.path.join(folder, filename)
     file.save(image_path)
 
-    # ✅ Save house record in DB
+    # âœ… Save house record in DB
     house = House(
         agent_id=user.id,
         title=title,
@@ -95,7 +95,7 @@ def create_house():
     }), 201
 
 
-# 🔹 Get all houses by logged-in agent
+# ðŸ”¹ Get all houses by logged-in agent
 @bp.route("/my-houses", methods=["GET"])
 @jwt_required()
 @role_required("agent")
@@ -121,7 +121,7 @@ def my_houses():
     }), 200
 
 
-# 🔹 Edit an existing house listing
+# ðŸ”¹ Edit an existing house listing
 @bp.route("/edit-house/<int:house_id>", methods=["PUT"])
 @jwt_required()
 @role_required("agent")
@@ -171,7 +171,7 @@ def edit_house(house_id):
     }), 200
 
 
-# 🔹 Delete a house
+# ðŸ”¹ Delete a house
 @bp.route("/delete-house/<int:house_id>", methods=["DELETE"])
 @jwt_required()
 @role_required("agent")
@@ -190,7 +190,7 @@ def delete_house(house_id):
 
 
 # ==========================================================
-# 🔹 ADMIN HOUSE MANAGEMENT
+# ðŸ”¹ ADMIN HOUSE MANAGEMENT
 # ==========================================================
 
 @bp.route("/all-houses", methods=["GET"])
@@ -276,7 +276,7 @@ def delete_house_admin(house_id):
 
 
 # ==========================================================
-# 🔹 AGENT PROFILE & DASHBOARD
+# ðŸ”¹ AGENT PROFILE & DASHBOARD
 # ==========================================================
 
 @bp.route("/profile", methods=["GET"])
@@ -339,7 +339,7 @@ def change_password():
 
 
 # ==========================================================
-# 🔹 AGENT DASHBOARD SUMMARY & NOTIFICATIONS
+# ðŸ”¹ AGENT DASHBOARD SUMMARY & NOTIFICATIONS
 # ==========================================================
 
 @bp.route("/summary", methods=["GET"])

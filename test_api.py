@@ -1,7 +1,7 @@
-import requests
+﻿import requests
 import json
 
-url = "http://127.0.0.1:5000/api/auth/register"  # 👈 LOCAL URL
+url = "http://127.0.0.1:5000/api/auth/register"  # ðŸ‘ˆ LOCAL URL
 
 data = {
     "username": "testuser",

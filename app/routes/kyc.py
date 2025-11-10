@@ -1,4 +1,4 @@
-import os
+﻿import os
 from flask import Blueprint, jsonify, request, current_app
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
@@ -11,20 +11,20 @@ from app.utils.notify import create_notification
 
 bp = Blueprint("kyc", __name__, url_prefix="/api/kyc")
 
-# 🟢 Test route
+# ðŸŸ¢ Test route
 @bp.route("/ping")
 def ping():
     return jsonify({"message": "KYC blueprint active!"}), 200
 
 
-# 🔹 Allowed file extensions
+# ðŸ”¹ Allowed file extensions
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "pdf"}
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-# 🔹 Agent uploads ID document (file)
+# ðŸ”¹ Agent uploads ID document (file)
 @bp.route("/upload", methods=["POST"])
 @login_required
 def upload_kyc_file():
@@ -63,7 +63,7 @@ def upload_kyc_file():
     return jsonify({"message": "KYC uploaded successfully!"}), 201
 
 
-# 🔹 Agent checks their KYC status
+# ðŸ”¹ Agent checks their KYC status
 @bp.route("/status", methods=["GET"])
 @login_required
 def get_kyc_status():
@@ -82,7 +82,7 @@ def get_kyc_status():
     }), 200
 
 
-# 🔹 Admin: view all KYC submissions
+# ðŸ”¹ Admin: view all KYC submissions
 @bp.route("/all", methods=["GET"])
 @login_required
 @admin_required
@@ -103,7 +103,7 @@ def view_all_kyc():
     return jsonify({"kyc_records": data}), 200
 
 
-# 🔹 Admin: approve or reject a KYC
+# ðŸ”¹ Admin: approve or reject a KYC
 @bp.route("/review/<int:agent_id>", methods=["POST"])
 @login_required
 @admin_required
@@ -120,15 +120,15 @@ def review_kyc(agent_id):
     record.admin_note = note
     record.reviewed_at = datetime.utcnow()
 
-    # ✅ Notify agent
+    # âœ… Notify agent
     note_msg = f"KYC {decision.upper()} - {note or 'No comment'}"
     notify = Notification(user_id=agent_id, message=note_msg)
     db.session.add(notify)
     db.session.commit()
-    create_notification(agent_id, f"Your KYC has been {decision.upper()} — {note or 'No comment'}")
+    create_notification(agent_id, f"Your KYC has been {decision.upper()} â€” {note or 'No comment'}")
 
 
-    # ✅ Optional email notification
+    # âœ… Optional email notification
     agent = User.query.get(agent_id)
     if agent and agent.email:
         body = (

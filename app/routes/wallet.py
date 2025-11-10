@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, g
+﻿from flask import Blueprint, jsonify, request, g
 from datetime import datetime
  Wallet, Transaction, User, House
 from app.utils.auth_helpers import jwt_required
@@ -6,14 +6,14 @@ from app.utils.auth_helpers import jwt_required
 bp = Blueprint("wallet", __name__, url_prefix="/api/wallet")
 
 
-# 🟢 Health check
+# ðŸŸ¢ Health check
 @bp.route("/ping")
 def ping():
     return jsonify({"message": "wallet blueprint active"}), 200
 
 
 # ==========================================================
-# 🔹 View wallet balance
+# ðŸ”¹ View wallet balance
 # ==========================================================
 @bp.route("/balance", methods=["GET"])
 @jwt_required()
@@ -32,7 +32,7 @@ def get_wallet_balance():
 
 
 # ==========================================================
-# 🔹 Top up wallet
+# ðŸ”¹ Top up wallet
 # ==========================================================
 @bp.route("/topup", methods=["POST"])
 @jwt_required()
@@ -69,7 +69,7 @@ def top_up_wallet():
 
 
 # ==========================================================
-# 🔹 View all approved houses (for haunters)
+# ðŸ”¹ View all approved houses (for haunters)
 # ==========================================================
 @bp.route("/houses", methods=["GET"])
 @jwt_required()
@@ -84,14 +84,14 @@ def get_all_houses():
 
     query = House.query.filter_by(status="approved")
 
-    # 🔍 Optional search and filters
+    # ðŸ” Optional search and filters
     search = request.args.get("search", "").strip().lower()
     location = request.args.get("location", "").strip().lower()
     min_price = request.args.get("min_price", type=float)
     max_price = request.args.get("max_price", type=float)
     sort_by = request.args.get("sort_by", "newest")  # options: newest, price_asc, price_desc
 
-    # 🔹 Apply filters
+    # ðŸ”¹ Apply filters
     if search:
         query = query.filter(
             db.or_(
@@ -106,7 +106,7 @@ def get_all_houses():
     if max_price is not None:
         query = query.filter(House.price <= max_price)
 
-    # 🔹 Sorting
+    # ðŸ”¹ Sorting
     if sort_by == "price_asc":
         query = query.order_by(House.price.asc())
     elif sort_by == "price_desc":

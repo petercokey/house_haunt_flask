@@ -1,17 +1,17 @@
-from flask import Blueprint, jsonify, request
+﻿from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
  Notification
 
 bp = Blueprint("notifications", __name__, url_prefix="/api/notifications")
 
 
-# 🟢 Test route
+# ðŸŸ¢ Test route
 @bp.route("/ping")
 def ping():
     return jsonify({"message": "Notifications blueprint active!"}), 200
 
 
-# 🔹 Fetch all notifications for the current user
+# ðŸ”¹ Fetch all notifications for the current user
 @bp.route("/", methods=["GET"])
 @login_required
 def get_notifications():
@@ -38,7 +38,7 @@ def get_notifications():
     }), 200
 
 
-# 🔹 Mark a single notification as read
+# ðŸ”¹ Mark a single notification as read
 @bp.route("/mark-read/<int:notification_id>", methods=["PATCH"])
 @login_required
 def mark_as_read(notification_id):
@@ -53,7 +53,7 @@ def mark_as_read(notification_id):
     return jsonify({"message": "Notification marked as read."}), 200
 
 
-# 🔹 Mark all notifications as read
+# ðŸ”¹ Mark all notifications as read
 @bp.route("/mark-all-read", methods=["PATCH"])
 @login_required
 def mark_all_read():
@@ -67,7 +67,7 @@ def mark_all_read():
     return jsonify({"message": f"{updated} notifications marked as read."}), 200
 
 
-# 🔹 Delete a single notification
+# ðŸ”¹ Delete a single notification
 @bp.route("/delete/<int:notification_id>", methods=["DELETE"])
 @login_required
 def delete_notification(notification_id):
@@ -81,7 +81,7 @@ def delete_notification(notification_id):
     return jsonify({"message": "Notification deleted successfully."}), 200
 
 
-# 🔹 Clear all notifications
+# ðŸ”¹ Clear all notifications
 @bp.route("/clear", methods=["DELETE"])
 @login_required
 def clear_notifications():
