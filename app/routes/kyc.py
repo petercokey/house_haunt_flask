@@ -1,144 +1,152 @@
-﻿import os
+import os
 from flask import Blueprint, jsonify, request, current_app
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from app.utils.decorators import role_required, admin_required
- KYC, User, Notification
 from app.utils.email_utils import send_email
 from app.utils.notify import create_notification
 
+from app.models import (
+    KYC,
+    User,
+    Notification
+)
 
 bp = Blueprint("kyc", __name__, url_prefix="/api/kyc")
 
-# ðŸŸ¢ Test route
-@bp.route("/ping")
-def ping():
-    return jsonify({"message": "KYC blueprint active!"}), 200
-
-
-# ðŸ”¹ Allowed file extensions
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "..", "uploads", "kyc_docs")
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "pdf"}
+
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-# ðŸ”¹ Agent uploads ID document (file)
-@bp.route("/upload", methods=["POST"])
-@login_required
-def upload_kyc_file():
-    if current_user.role != "agent":
-        return jsonify({"error": "Only agents can upload KYC."}), 403
+@bp.route("/ping")
+def ping():
+    return jsonify({"message": "KYC blueprint active!"}), 200
 
+
+# Upload KYC (agent)
+@bp.route("/upload", methods=["POST"])
+@jwt_required()
+@role_required("agent")
+def upload_kyc_file():
+    user_id = g.user["_id"]
     if "file" not in request.files:
-        return jsonify({"error": "No file uploaded."}), 400
+        return jsonify({"error": "No file uploaded"}), 400
 
     file = request.files["file"]
+    if file.filename == "" or not allowed_file(file.filename):
+        return jsonify({"error": "Invalid file type"}), 400
 
-    if file.filename == "":
-        return jsonify({"error": "No selected file."}), 400
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    filename = secure_filename(f"{user_id}_{file.filename}")
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(file_path)
 
-    if not allowed_file(file.filename):
-        return jsonify({"error": "Invalid file type. Allowed: png, jpg, jpeg, pdf"}), 400
-
-    # Create upload folder if not exists
-    folder = os.path.join(current_app.root_path, "uploads", "kyc_docs")
-    os.makedirs(folder, exist_ok=True)
-
-    filename = secure_filename(f"{current_user.id}_{file.filename}")
-    path = os.path.join(folder, filename)
-    file.save(path)
-
-    # Save record to DB
-    record = KYC(
-        agent_id=current_user.id,
-        file_path=path,
-        status="pending",
-        uploaded_at=datetime.utcnow(),
-    )
-    db.session.add(record)
-    db.session.commit()
+    existing = mongo.db.kyc.find_one({"agent_id": user_id})
+    if existing:
+        mongo.db.kyc.update_one({"_id": existing["_id"]}, {"$set": {
+            "file_path": file_path,
+            "status": "pending",
+            "uploaded_at": datetime.utcnow()
+        }})
+    else:
+        mongo.db.kyc.insert_one({
+            "agent_id": user_id,
+            "file_path": file_path,
+            "status": "pending",
+            "uploaded_at": datetime.utcnow()
+        })
 
     return jsonify({"message": "KYC uploaded successfully!"}), 201
 
 
-# ðŸ”¹ Agent checks their KYC status
+# KYC Status
 @bp.route("/status", methods=["GET"])
-@login_required
+@jwt_required()
+@role_required("agent")
 def get_kyc_status():
-    if current_user.role != "agent":
-        return jsonify({"error": "Only agents can view KYC status."}), 403
-
-    record = KYC.query.filter_by(agent_id=current_user.id).first()
+    user_id = g.user["_id"]
+    record = mongo.db.kyc.find_one({"agent_id": user_id})
     if not record:
         return jsonify({"status": "not_submitted"}), 200
 
     return jsonify({
-        "status": record.status,
-        "uploaded_at": record.uploaded_at,
-        "reviewed_at": record.reviewed_at,
-        "admin_note": record.admin_note
+        "status": record.get("status"),
+        "uploaded_at": record.get("uploaded_at"),
+        "reviewed_at": record.get("reviewed_at"),
+        "admin_note": record.get("admin_note")
     }), 200
 
 
-# ðŸ”¹ Admin: view all KYC submissions
+# Admin: view all KYC
 @bp.route("/all", methods=["GET"])
-@login_required
-@admin_required
+@jwt_required()
+@role_required("admin")
 def view_all_kyc():
-    kycs = KYC.query.order_by(KYC.uploaded_at.desc()).all()
-    data = [
-        {
-            "id": k.id,
-            "agent_id": k.agent_id,
-            "status": k.status,
-            "uploaded_at": k.uploaded_at,
-            "reviewed_at": k.reviewed_at,
-            "admin_note": k.admin_note,
-            "file_path": k.file_path
-        }
-        for k in kycs
-    ]
+    kycs = list(mongo.db.kyc.find().sort("uploaded_at", -1))
+    data = [{
+        "id": str(k["_id"]),
+        "agent_id": str(k["agent_id"]),
+        "status": k.get("status"),
+        "uploaded_at": k.get("uploaded_at"),
+        "reviewed_at": k.get("reviewed_at"),
+        "admin_note": k.get("admin_note"),
+        "file_path": k.get("file_path")
+    } for k in kycs]
     return jsonify({"kyc_records": data}), 200
 
 
-# ðŸ”¹ Admin: approve or reject a KYC
-@bp.route("/review/<int:agent_id>", methods=["POST"])
-@login_required
-@admin_required
+# Admin: approve/reject KYC
+@bp.route("/review/<agent_id>", methods=["POST"])
+@jwt_required()
+@role_required("admin")
 def review_kyc(agent_id):
     data = request.get_json()
-    decision = data.get("decision")  # "approved" or "rejected"
+    decision = data.get("decision")
     note = data.get("note", "")
 
-    record = KYC.query.filter_by(agent_id=agent_id).first()
+    record = mongo.db.kyc.find_one({"agent_id": ObjectId(agent_id)})
     if not record:
         return jsonify({"error": "No KYC found for this agent"}), 404
+    if decision not in ["approved", "rejected"]:
+        return jsonify({"error": "Invalid decision"}), 400
 
-    record.status = decision
-    record.admin_note = note
-    record.reviewed_at = datetime.utcnow()
+    mongo.db.kyc.update_one({"_id": record["_id"]}, {"$set": {
+        "status": decision,
+        "admin_note": note,
+        "reviewed_at": datetime.utcnow()
+    }})
 
-    # âœ… Notify agent
-    note_msg = f"KYC {decision.upper()} - {note or 'No comment'}"
-    notify = Notification(user_id=agent_id, message=note_msg)
-    db.session.add(notify)
-    db.session.commit()
-    create_notification(agent_id, f"Your KYC has been {decision.upper()} â€” {note or 'No comment'}")
+    create_notification(ObjectId(agent_id), f"KYC {decision.upper()} — {note or 'No comment'}")
 
-
-    # âœ… Optional email notification
-    agent = User.query.get(agent_id)
-    if agent and agent.email:
-        body = (
-            f"Hello {agent.username},\n\n"
-            f"Your KYC submission has been {decision.upper()}.\n\n"
-            f"Admin note: {note if note else 'No additional comment.'}\n\n"
-            "Thank you for using HouseHaunt!"
+    agent = mongo.db.users.find_one({"_id": ObjectId(agent_id)})
+    if agent and agent.get("email"):
+        send_email(
+            f"KYC {decision.capitalize()}",
+            [agent["email"]],
+            f"Hello {agent['username']}, your KYC has been {decision.upper()}.\n\nNote: {note or 'No comment.'}"
         )
-        send_email(f"KYC {decision.capitalize()}", [agent.email], body)
 
     return jsonify({"message": f"KYC {decision} successfully"}), 200
 
 
+# Serve KYC document
+@bp.route("/view/<kyc_id>", methods=["GET"])
+@jwt_required()
+def view_kyc_document(kyc_id):
+    record = mongo.db.kyc.find_one({"_id": ObjectId(kyc_id)})
+    if not record:
+        return jsonify({"error": "KYC not found"}), 404
+
+    if record["agent_id"] != g.user["_id"] and g.user.get("role") != "admin":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    if not os.path.exists(record["file_path"]):
+        return jsonify({"error": "File not found"}), 404
+
+    folder, filename = os.path.split(record["file_path"])
+    return send_from_directory(folder, filename)

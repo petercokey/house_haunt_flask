@@ -8,6 +8,7 @@ from app.utils.notify import create_notification
 
 bp = Blueprint("contact", __name__, url_prefix="/api/contact")
 
+
 @bp.route("/ping")
 def ping():
     return jsonify({"message": "contact blueprint active"}), 200

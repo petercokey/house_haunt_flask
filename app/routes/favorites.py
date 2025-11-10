@@ -1,89 +1,70 @@
-﻿from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
- Favorite, House, User
-from datetime import datetime
 from app.utils.decorators import role_required
+from datetime import datetime
+
+from app.models import (
+    Favorite,
+    House,
+    User
+)
 
 bp = Blueprint("favorites", __name__, url_prefix="/api/favorites")
 
-
-# ðŸŸ¢ Test route
 @bp.route("/ping")
 def ping():
-    return jsonify({"message": "Favorites blueprint active!"}), 200
+    return jsonify({"message": "favorites blueprint active!"}), 200
 
 
-# ðŸ”¹ Add a house to haunter's favorites
-@bp.route("/add/<int:house_id>", methods=["POST"])
-@login_required
-@role_required("haunter")
-def add_favorite(house_id):
-    """Haunter saves a house to favorites."""
-    house = House.query.get(house_id)
-    if not house:
-        return jsonify({"error": "House not found."}), 404
-
-    # Prevent duplicate favorites
-    existing = Favorite.query.filter_by(user_id=current_user.id, house_id=house_id).first()
-    if existing:
-        return jsonify({"message": "House already in favorites."}), 200
-
-    fav = Favorite(user_id=current_user.id, house_id=house_id, created_at=datetime.utcnow())
-    db.session.add(fav)
-    db.session.commit()
-
-    return jsonify({"message": f"House '{house.title}' added to favorites."}), 201
-
-
-# ðŸ”¹ Remove a favorite
-@bp.route("/remove/<int:house_id>", methods=["DELETE"])
-@login_required
-@role_required("haunter")
-def remove_favorite(house_id):
-    """Remove a house from haunterâ€™s favorites."""
-    fav = Favorite.query.filter_by(user_id=current_user.id, house_id=house_id).first()
-    if not fav:
-        return jsonify({"error": "Favorite not found."}), 404
-
-    db.session.delete(fav)
-    db.session.commit()
-    return jsonify({"message": "Removed from favorites."}), 200
-
-
-# ðŸ”¹ Get all saved favorites
+# Get all favorites for logged-in haunter
 @bp.route("/", methods=["GET"])
-@login_required
+@jwt_required()
 @role_required("haunter")
 def get_favorites():
-    """Return all houses a haunter has favorited."""
-    favorites = (
-        db.session.query(Favorite, House)
-        .join(House, Favorite.house_id == House.id)
-        .filter(Favorite.user_id == current_user.id)
-        .order_by(Favorite.created_at.desc())
-        .all()
-    )
+    haunter_id = g.user["_id"]
+    favorites = list(mongo.db.favorites.find({"haunter_id": haunter_id}))
 
     results = []
-    for fav, house in favorites:
-        agent = User.query.get(house.agent_id)
-        results.append({
-            "favorite_id": fav.id,
-            "house": {
-                "id": house.id,
-                "title": house.title,
-                "location": house.location,
-                "price": house.price,
-                "image": house.image_path,
-            },
-            "agent": {
-                "id": agent.id if agent else None,
-                "name": agent.username if agent else "Unknown"
-            },
-            "saved_on": fav.created_at
-        })
+    for fav in favorites:
+        house = mongo.db.houses.find_one({"_id": fav["house_id"], "status": "approved"})
+        if house:
+            results.append({
+                "id": str(house["_id"]),
+                "title": house["title"],
+                "location": house["location"],
+                "price": house["price"],
+                "image_url": house.get("image_path")
+            })
 
-    return jsonify({
-        "total_favorites": len(results),
-        "favorites": results
-    }), 200
+    return jsonify({"total_favorites": len(results), "favorites": results}), 200
+
+
+# Add to favorites
+@bp.route("/add/<house_id>", methods=["POST"])
+@jwt_required()
+@role_required("haunter")
+def add_favorite(house_id):
+    house_oid = ObjectId(house_id)
+    haunter_id = g.user["_id"]
+
+    if mongo.db.favorites.find_one({"haunter_id": haunter_id, "house_id": house_oid}):
+        return jsonify({"message": "House already in favorites."}), 200
+
+    mongo.db.favorites.insert_one({"haunter_id": haunter_id, "house_id": house_oid})
+    return jsonify({"message": "House added to favorites!"}), 201
+
+
+# Remove from favorites
+@bp.route("/remove/<house_id>", methods=["DELETE"])
+@jwt_required()
+@role_required("haunter")
+def remove_favorite(house_id):
+    house_oid = ObjectId(house_id)
+    haunter_id = g.user["_id"]
+
+    fav = mongo.db.favorites.find_one({"haunter_id": haunter_id, "house_id": house_oid})
+    if not fav:
+        return jsonify({"error": "House not in favorites."}), 404
+
+    mongo.db.favorites.delete_one({"_id": fav["_id"]})
+    return jsonify({"message": "House removed from favorites."}), 200
