@@ -1,8 +1,15 @@
+# app/routes/wallet.py
 from flask import Blueprint, jsonify, request, g
 from datetime import datetime
-from bson import ObjectId
 from app import mongo
 from app.utils.auth_helpers import jwt_required
+
+from app.models import (
+    Wallet,
+    Transaction,
+    User,
+    House
+)
 
 bp = Blueprint("wallet", __name__, url_prefix="/api/wallet")
 
