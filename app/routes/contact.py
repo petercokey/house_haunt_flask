@@ -2,7 +2,7 @@
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from datetime import datetime
-from app.models import db, User, Wallet, ContactRequest, Notification, Transaction, House
+ User, Wallet, ContactRequest, Notification, Transaction, House
 from app.utils.decorators import role_required
 from app.utils.notify import create_notification
 

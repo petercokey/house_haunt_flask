@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request, current_app, g
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import os
-from app.models import db, House, User, Transaction, ContactRequest, Notification, KYC
+ House, User, Transaction, ContactRequest, Notification, KYC
 from app.utils.auth_helpers import jwt_required
 from app.utils.decorators import role_required, admin_required
 from app.extensions import bcrypt

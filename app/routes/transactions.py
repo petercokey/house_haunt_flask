@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, g
-from app.models import db, Transaction
+ Transaction
 from app.utils.auth_helpers import jwt_required
 
 bp = Blueprint("transactions", __name__, url_prefix="/api/transactions")

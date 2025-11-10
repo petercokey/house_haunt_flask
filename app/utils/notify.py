@@ -1,10 +1,25 @@
 # app/utils/notify.py
-from app.models import Notification, db
+from app import mongo
 from datetime import datetime
 
 def create_notification(user_id, message):
-    """Simple helper to create and save a new notification"""
-    notif = Notification(user_id=user_id, message=message, created_at=datetime.utcnow())
-    db.session.add(notif)
-    db.session.commit()
+    """
+    Create a notification for a user in MongoDB.
+
+    Args:
+        user_id (ObjectId or str): ID of the user to notify.
+        message (str): Notification message.
+
+    Returns:
+        dict: The inserted notification document.
+    """
+    notif = {
+        "user_id": user_id,
+        "message": message,
+        "is_read": False,
+        "created_at": datetime.utcnow()
+    }
+    result = mongo.db.notifications.insert_one(notif)
+    notif["_id"] = result.inserted_id
     return notif
+

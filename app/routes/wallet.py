@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request, g
 from datetime import datetime
-from app.models import db, Wallet, Transaction, User, House
+ Wallet, Transaction, User, House
 from app.utils.auth_helpers import jwt_required
 
 bp = Blueprint("wallet", __name__, url_prefix="/api/wallet")

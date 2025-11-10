@@ -1,6 +1,6 @@
 # app/routes/seed.py
 from flask import Blueprint, jsonify, request
-from app.models import db, User, House, Review
+ User, House, Review
 from werkzeug.security import generate_password_hash
 import os
 

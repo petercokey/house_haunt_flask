@@ -4,7 +4,7 @@ from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from app.utils.decorators import role_required, admin_required
-from app.models import db, KYC, User, Notification
+ KYC, User, Notification
 from app.utils.email_utils import send_email
 from app.utils.notify import create_notification
 

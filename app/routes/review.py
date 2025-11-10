@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 from app.utils.decorators import role_required
-from app.models import db, Review, ContactRequest, User
+ Review, ContactRequest, User
 from app.utils.notify import create_notification
 
 
