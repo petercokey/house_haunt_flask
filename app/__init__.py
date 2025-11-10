@@ -1,3 +1,4 @@
+# Force rebuild for Render after removing SQLAlchemy references
 # app/__init__.py
 from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
