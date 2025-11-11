@@ -1,21 +1,21 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 from flask_login import login_required, current_user
 from app.utils.decorators import role_required
+from app.utils.auth_helpers import jwt_required
 from datetime import datetime
+from app import mongo
+from bson import ObjectId
 
 from app.models import (
     Favorite,
     House,
     User
 )
-
 bp = Blueprint("favorites", __name__, url_prefix="/api/favorites")
 
 @bp.route("/ping")
 def ping():
     return jsonify({"message": "favorites blueprint active!"}), 200
-
-
 # Get all favorites for logged-in haunter
 @bp.route("/", methods=["GET"])
 @jwt_required()
