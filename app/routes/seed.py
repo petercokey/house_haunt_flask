@@ -54,7 +54,6 @@ def seed_data():
         }
 
         mongo.db.users.insert_many([user1, user2])
-
         # Create houses
         house1 = {
             "_id": ObjectId(),
