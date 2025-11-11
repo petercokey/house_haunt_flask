@@ -1,8 +1,9 @@
-﻿# app/routes/seed.py
-from flask import Blueprint, jsonify, request
- User, House, Review
+# app/routes/seed.py
+from flask import Blueprint, jsonify, request, current_app
 from werkzeug.security import generate_password_hash
+from bson import ObjectId
 import os
+from datetime import datetime
 
 bp = Blueprint("seed", __name__, url_prefix="/api/seed")
 
@@ -12,72 +13,92 @@ SECRET_SEED_KEY = os.getenv("SEED_KEY", "mydevkey123")
 @bp.route("/test-mongo")
 def test_mongo():
     mongo = current_app.mongo
-    mongo.db.test.insert_one({"msg": "Hello Mongo!"})
+    mongo.db.test.insert_one({"msg": "Hello Mongo!", "created_at": datetime.utcnow()})
     count = mongo.db.test.count_documents({})
-    return jsonify({"message": "Connected successfully!", "total_docs": count}), 200
+    return jsonify({"message": "✅ Connected successfully!", "total_docs": count}), 200
 
 
 @bp.route("/", methods=["POST"])
 def seed_data():
-    """Seed dummy data into Render DB (protected by a secret key)."""
+    """Seed dummy data into MongoDB (protected by secret key)."""
     key = request.args.get("key")
-
     if key != SECRET_SEED_KEY:
         return jsonify({"error": "Unauthorized access"}), 403
 
+    mongo = current_app.mongo
+
     try:
-        db.drop_all()
-        db.create_all()
+        # Clean collections (optional)
+        mongo.db.users.delete_many({})
+        mongo.db.houses.delete_many({})
+        mongo.db.reviews.delete_many({})
+        mongo.db.wallets.delete_many({})
 
-        user1 = User(
-            username="John Doe",
-            email="john@example.com",
-            password=generate_password_hash("password123"),
-            role="haunter"
-        )
-        user2 = User(
-            username="Agent Smith",
-            email="agent@example.com",
-            password=generate_password_hash("password123"),
-            role="agent"
-        )
+        # Create users
+        user1 = {
+            "_id": ObjectId(),
+            "username": "John Doe",
+            "email": "john@example.com",
+            "password": generate_password_hash("password123"),
+            "role": "haunter",
+            "created_at": datetime.utcnow()
+        }
 
-        db.session.add_all([user1, user2])
-        db.session.commit()
+        user2 = {
+            "_id": ObjectId(),
+            "username": "Agent Smith",
+            "email": "agent@example.com",
+            "password": generate_password_hash("password123"),
+            "role": "agent",
+            "created_at": datetime.utcnow()
+        }
 
-        house1 = House(
-            title="Cozy Apartment in Lagos",
-            description="Nice 2-bedroom apartment in Ikeja",
-            location="Ikeja",
-            price=150000,
-            agent_id=user2.id   # âœ… make sure to use agent_id not owner_id
-        )
+        mongo.db.users.insert_many([user1, user2])
 
-        house2 = House(
-            title="Beachside Villa",
-            description="Luxury villa with ocean view",
-            location="Lekki",
-            price=500000,
-            agent_id=user2.id
-        )
+        # Create houses
+        house1 = {
+            "_id": ObjectId(),
+            "title": "Cozy Apartment in Lagos",
+            "description": "Nice 2-bedroom apartment in Ikeja",
+            "location": "Ikeja",
+            "price": 150000,
+            "agent_id": user2["_id"],
+            "created_at": datetime.utcnow()
+        }
 
-        db.session.add_all([house1, house2])
-        db.session.commit()
+        house2 = {
+            "_id": ObjectId(),
+            "title": "Beachside Villa",
+            "description": "Luxury villa with ocean view",
+            "location": "Lekki",
+            "price": 500000,
+            "agent_id": user2["_id"],
+            "created_at": datetime.utcnow()
+        }
 
-        review1 = Review(
-            haunter_id=user1.id,
-            agent_id=user2.id,
-            rating=4,
-            comment="Nice place!"
-        )
+        mongo.db.houses.insert_many([house1, house2])
 
-        db.session.add(review1)
-        db.session.commit()
+        # Create review
+        review1 = {
+            "_id": ObjectId(),
+            "haunter_id": user1["_id"],
+            "agent_id": user2["_id"],
+            "rating": 4,
+            "comment": "Nice place!",
+            "created_at": datetime.utcnow()
+        }
 
-        return jsonify({"message": "âœ… Dummy data seeded successfully!"}), 201
+        mongo.db.reviews.insert_one(review1)
+
+        # Create wallets
+        mongo.db.wallets.insert_many([
+            {"user_id": user1["_id"], "balance": 0, "credits_spent": 0, "updated_at": datetime.utcnow()},
+            {"user_id": user2["_id"], "balance": 0, "credits_spent": 0, "updated_at": datetime.utcnow()}
+        ])
+
+        return jsonify({"message": "✅ Dummy data seeded successfully!"}), 201
 
     except Exception as e:
         import traceback
-        print("âŒ ERROR seeding data:", e)
-        traceback.print_exc()   # ðŸ‘ˆ this line prints the full error to Render logs
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
