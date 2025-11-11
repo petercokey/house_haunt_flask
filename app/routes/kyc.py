@@ -6,6 +6,8 @@ from datetime import datetime
 from app.utils.decorators import role_required, admin_required
 from app.utils.email_utils import send_email
 from app.utils.notify import create_notification
+from app.utils.auth_helpers import jwt_required
+
 
 from app.models import (
     KYC,
