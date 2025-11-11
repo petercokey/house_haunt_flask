@@ -1,13 +1,13 @@
 import os
-from flask import Blueprint, jsonify, request, current_app
-from flask_login import current_user, login_required
+from flask import Blueprint, jsonify, request, current_app, g, send_from_directory
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from app.utils.decorators import role_required, admin_required
 from app.utils.email_utils import send_email
 from app.utils.notify import create_notification
 from app.utils.auth_helpers import jwt_required
-
+from app import mongo
+from bson import ObjectId
 
 from app.models import (
     KYC,
