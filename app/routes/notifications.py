@@ -1,93 +1,76 @@
-﻿from flask import Blueprint, jsonify, request
-from flask_login import login_required, current_user
- Notification
+# app/routes/notifications.py
+from flask import Blueprint, jsonify, g
+from datetime import datetime
+from bson import ObjectId
+from app import mongo
+from app.utils.auth_helpers import jwt_required
 
 bp = Blueprint("notifications", __name__, url_prefix="/api/notifications")
 
 
-# ðŸŸ¢ Test route
 @bp.route("/ping")
 def ping():
     return jsonify({"message": "Notifications blueprint active!"}), 200
 
 
-# ðŸ”¹ Fetch all notifications for the current user
+# Fetch all notifications
 @bp.route("/", methods=["GET"])
-@login_required
+@jwt_required()
 def get_notifications():
-    """Return all notifications for the logged-in user."""
-    notifications = (
-        Notification.query.filter_by(user_id=current_user.id)
-        .order_by(Notification.created_at.desc())
-        .all()
-    )
+    user_id = g.user["_id"]
+    notifications = list(mongo.db.notifications.find({"user_id": user_id}).sort("created_at", -1))
 
-    results = [
-        {
-            "id": n.id,
-            "message": n.message,
-            "is_read": n.is_read,
-            "created_at": n.created_at,
-        }
-        for n in notifications
-    ]
+    results = [{
+        "id": str(n["_id"]),
+        "message": n.get("message"),
+        "is_read": n.get("is_read", False),
+        "created_at": n.get("created_at")
+    } for n in notifications]
 
-    return jsonify({
-        "total": len(results),
-        "notifications": results
-    }), 200
+    return jsonify({"total": len(results), "notifications": results}), 200
 
 
-# ðŸ”¹ Mark a single notification as read
-@bp.route("/mark-read/<int:notification_id>", methods=["PATCH"])
-@login_required
+# Mark single as read
+@bp.route("/mark-read/<notification_id>", methods=["PATCH"])
+@jwt_required()
 def mark_as_read(notification_id):
-    """Mark a specific notification as read."""
-    notification = Notification.query.filter_by(id=notification_id, user_id=current_user.id).first()
-    if not notification:
+    user_id = g.user["_id"]
+    result = mongo.db.notifications.update_one(
+        {"_id": ObjectId(notification_id), "user_id": user_id},
+        {"$set": {"is_read": True}}
+    )
+    if result.matched_count == 0:
         return jsonify({"error": "Notification not found"}), 404
-
-    notification.is_read = True
-    db.session.commit()
-
     return jsonify({"message": "Notification marked as read."}), 200
 
 
-# ðŸ”¹ Mark all notifications as read
+# Mark all as read
 @bp.route("/mark-all-read", methods=["PATCH"])
-@login_required
+@jwt_required()
 def mark_all_read():
-    """Mark all notifications for the user as read."""
-    updated = (
-        Notification.query.filter_by(user_id=current_user.id, is_read=False)
-        .update({"is_read": True})
+    user_id = g.user["_id"]
+    result = mongo.db.notifications.update_many(
+        {"user_id": user_id, "is_read": False},
+        {"$set": {"is_read": True}}
     )
-    db.session.commit()
-
-    return jsonify({"message": f"{updated} notifications marked as read."}), 200
+    return jsonify({"message": f"{result.modified_count} notifications marked as read."}), 200
 
 
-# ðŸ”¹ Delete a single notification
-@bp.route("/delete/<int:notification_id>", methods=["DELETE"])
-@login_required
+# Delete single notification
+@bp.route("/delete/<notification_id>", methods=["DELETE"])
+@jwt_required()
 def delete_notification(notification_id):
-    """Allow users to delete a specific notification."""
-    notification = Notification.query.filter_by(id=notification_id, user_id=current_user.id).first()
-    if not notification:
+    user_id = g.user["_id"]
+    result = mongo.db.notifications.delete_one({"_id": ObjectId(notification_id), "user_id": user_id})
+    if result.deleted_count == 0:
         return jsonify({"error": "Notification not found"}), 404
-
-    db.session.delete(notification)
-    db.session.commit()
     return jsonify({"message": "Notification deleted successfully."}), 200
 
 
-# ðŸ”¹ Clear all notifications
+# Clear all notifications
 @bp.route("/clear", methods=["DELETE"])
-@login_required
+@jwt_required()
 def clear_notifications():
-    """Delete all notifications for the logged-in user."""
-    Notification.query.filter_by(user_id=current_user.id).delete()
-    db.session.commit()
-
+    user_id = g.user["_id"]
+    mongo.db.notifications.delete_many({"user_id": user_id})
     return jsonify({"message": "All notifications cleared."}), 200
-
