@@ -2,14 +2,16 @@ from functools import wraps
 from flask import jsonify, g
 from app.utils.auth_helpers import jwt_required
 
-# 🔹 Role-based access
+
+# ==========================================================
+# 🔹 Role-based Access Control Decorator
 # ==========================================================
 def role_required(role_name):
     """
-    Restrict access to users with a specific role.
+    Requires a valid JWT and checks that the user has the given role.
     Usage:
         @role_required("agent")
-        def my_route(): ...
+        def protected_route(): ...
     """
     def decorator(fn):
         @wraps(fn)
@@ -20,7 +22,7 @@ def role_required(role_name):
                 return jsonify({"error": "Unauthorized"}), 401
 
             if user.get("role") != role_name:
-                return jsonify({"error": f"Access restricted to '{role_name}' only"}), 403
+                return jsonify({"error": f"Access denied. Requires '{role_name}' role."}), 403
 
             return fn(*args, **kwargs)
         return wrapper
@@ -28,14 +30,11 @@ def role_required(role_name):
 
 
 # ==========================================================
-# 🔹 Admin-only access
+# 🔹 Admin check decorator
 # ==========================================================
 def admin_required(fn):
     """
-    Restrict access to admin users only.
-    Usage:
-        @admin_required
-        def admin_route(): ...
+    Ensures that the logged-in user is an admin.
     """
     @wraps(fn)
     @jwt_required()
