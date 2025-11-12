@@ -25,10 +25,12 @@ def register():
     if mongo.db.users.find_one({"email": data["email"]}):
         return jsonify({"error": "Email already registered"}), 409
 
+    hashed_password = generate_password_hash(data["password"])
+
     user = {
         "username": data.get("username", data["email"].split("@")[0]),
         "email": data["email"],
-        "password": generate_password_hash(data["password"]),
+        "password": hashed_password,
         "role": data.get("role", "haunter"),
         "created_at": datetime.utcnow(),
     }
@@ -52,7 +54,15 @@ def login():
         return jsonify({"error": "Missing credentials"}), 400
 
     user = mongo.db.users.find_one({"email": data["email"]})
-    if not user or not check_password_hash(user["password"], data["password"]):
+    if not user:
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    # 🛠 Fix: ensure password field is valid and hashed before checking
+    stored_password = user.get("password")
+    if not stored_password or not stored_password.startswith("pbkdf2:"):
+        return jsonify({"error": "Invalid password format. Please reset your password."}), 400
+
+    if not check_password_hash(stored_password, data["password"]):
         return jsonify({"error": "Invalid email or password"}), 401
 
     token = jwt.encode({
