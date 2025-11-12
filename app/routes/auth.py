@@ -60,7 +60,6 @@ def login():
     try:
         valid_password = check_password_hash(user["password"], data["password"])
     except ValueError:
-        # The hash is invalid or in an old format
         return jsonify({"error": "Invalid password format. Please reset your password."}), 400
 
     if not valid_password:
@@ -71,10 +70,18 @@ def login():
         "exp": datetime.utcnow() + timedelta(hours=24)
     }, SECRET_KEY, algorithm="HS256")
 
-    response = make_response(jsonify({
+    response_data = {
         "message": "Login successful",
-        "token": token
-    }), 200)
+        "token": token,
+        "user": {  # <-- add this
+            "id": str(user["_id"]),
+            "username": user.get("username"),
+            "email": user.get("email"),
+            "role": user.get("role")
+        }
+    }
+
+    response = make_response(jsonify(response_data), 200)
     response.set_cookie(
         "access_token_cookie",
         token,
@@ -84,6 +91,7 @@ def login():
         max_age=24 * 3600
     )
     return response
+
 
 
 # ==========================================================
