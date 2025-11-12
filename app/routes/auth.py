@@ -57,12 +57,13 @@ def login():
     if not user:
         return jsonify({"error": "Invalid email or password"}), 401
 
-    # 🛠 Fix: ensure password field is valid and hashed before checking
-    stored_password = user.get("password")
-    if not stored_password or not stored_password.startswith("pbkdf2:"):
+    try:
+        valid_password = check_password_hash(user["password"], data["password"])
+    except ValueError:
+        # The hash is invalid or in an old format
         return jsonify({"error": "Invalid password format. Please reset your password."}), 400
 
-    if not check_password_hash(stored_password, data["password"]):
+    if not valid_password:
         return jsonify({"error": "Invalid email or password"}), 401
 
     token = jwt.encode({
