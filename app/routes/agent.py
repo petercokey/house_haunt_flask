@@ -5,6 +5,7 @@ import os
 from app.extensions import bcrypt
 from app.utils.auth_helpers import jwt_required
 from app.utils.decorators import role_required, admin_required
+from bson import ObjectId
 
 from app.models import (
     House,

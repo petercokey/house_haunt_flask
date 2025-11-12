@@ -1,32 +1,32 @@
-﻿# app/utils/auth_helpers.py
 from functools import wraps
 from flask import request, jsonify, g
 import jwt, os
-from app.models import User
+from app import mongo
+from bson import ObjectId
 
-# ðŸ”¹ Secret key for JWT decoding
+# 🔹 Secret key for JWT
 SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key")
 
 
 # ==========================================================
-# ðŸ”¹ Core JWT Authentication Decorator
+# 🔹 Core JWT Authentication Decorator
 # ==========================================================
 def jwt_required():
     """
-    Ensure the request includes a valid JWT token.
-    Decodes the token and attaches the user object to `g.user`.
+    Ensures the request includes a valid JWT token.
+    Decodes the token and attaches the MongoDB user document to `g.user`.
     """
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
             token = request.cookies.get("access_token_cookie")
-
             if not token:
                 return jsonify({"error": "Missing authentication token"}), 401
 
             try:
                 payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-                user = User.query.get(payload.get("user_id"))
+                user_id = payload.get("user_id")
+                user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
                 if not user:
                     return jsonify({"error": "User not found"}), 404
 
@@ -42,12 +42,12 @@ def jwt_required():
 
 
 # ==========================================================
-# ðŸ”¹ Role-based Access Control Decorator
+# 🔹 Role-based Access Control Decorator
 # ==========================================================
 def role_required(role_name):
     """
     Requires a valid JWT and checks that the user has the given role.
-    Example:
+    Usage:
         @role_required("agent")
         def protected_route(): ...
     """
@@ -59,7 +59,7 @@ def role_required(role_name):
             if not user:
                 return jsonify({"error": "Unauthorized"}), 401
 
-            if user.role != role_name:
+            if user.get("role") != role_name:
                 return jsonify({"error": f"Access denied. Requires '{role_name}' role."}), 403
 
             return fn(*args, **kwargs)
@@ -68,19 +68,36 @@ def role_required(role_name):
 
 
 # ==========================================================
-# ðŸ”¹ Utility: get_authenticated_user()
+# 🔹 Admin check decorator
+# ==========================================================
+def admin_required(fn):
+    """
+    Ensures that the logged-in user is an admin.
+    """
+    @wraps(fn)
+    @jwt_required()
+    def wrapper(*args, **kwargs):
+        user = g.get("user")
+        if not user or user.get("role") != "admin":
+            return jsonify({"error": "Admin access required"}), 403
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+# ==========================================================
+# 🔹 Utility: get_authenticated_user()
 # ==========================================================
 def get_authenticated_user():
     """
-    Returns the authenticated user if the JWT is valid.
+    Returns the authenticated MongoDB user document from JWT.
     Can be used manually inside routes instead of decorators.
     """
     token = request.cookies.get("access_token_cookie")
     if not token:
         return None
-
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        return User.query.get(payload.get("user_id"))
+        user_id = payload.get("user_id")
+        return mongo.db.users.find_one({"_id": ObjectId(user_id)})
     except Exception:
         return None

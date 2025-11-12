@@ -1,31 +1,47 @@
-﻿# app/utils/decorators.py
 from functools import wraps
-from flask import jsonify
-from flask_login import current_user
+from flask import jsonify, g
+from app.utils.auth_helpers import jwt_required
 
-def role_required(role):
-    """Restrict access to a specific user role."""
-    def decorator(f):
-        @wraps(f)
+# 🔹 Role-based access
+# ==========================================================
+def role_required(role_name):
+    """
+    Restrict access to users with a specific role.
+    Usage:
+        @role_required("agent")
+        def my_route(): ...
+    """
+    def decorator(fn):
+        @wraps(fn)
+        @jwt_required()
         def wrapper(*args, **kwargs):
-            if not current_user.is_authenticated:
-                return jsonify({"error": "Login required"}), 401
+            user = g.get("user")
+            if not user:
+                return jsonify({"error": "Unauthorized"}), 401
 
-            if current_user.role != role:
-                return jsonify({"error": f"Access restricted to {role}s only"}), 403
+            if user.get("role") != role_name:
+                return jsonify({"error": f"Access restricted to '{role_name}' only"}), 403
 
-            return f(*args, **kwargs)
+            return fn(*args, **kwargs)
         return wrapper
     return decorator
 
 
-def admin_required(f):
-    """Decorator for admin-only routes"""
-    @wraps(f)
+# ==========================================================
+# 🔹 Admin-only access
+# ==========================================================
+def admin_required(fn):
+    """
+    Restrict access to admin users only.
+    Usage:
+        @admin_required
+        def admin_route(): ...
+    """
+    @wraps(fn)
+    @jwt_required()
     def wrapper(*args, **kwargs):
-        if not current_user.is_authenticated:
-            return jsonify({"error": "Login required"}), 401
-        if current_user.role != "admin":
-            return jsonify({"error": "Admins only"}), 403
-        return f(*args, **kwargs)
+        user = g.get("user")
+        if not user or user.get("role") != "admin":
+            return jsonify({"error": "Admin access required"}), 403
+        return fn(*args, **kwargs)
     return wrapper

@@ -1,5 +1,4 @@
 from flask import Blueprint, jsonify, request, g
-from flask_login import login_required, current_user
 from app.utils.decorators import role_required
 from app.utils.auth_helpers import jwt_required
 from datetime import datetime
