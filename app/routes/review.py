@@ -1,5 +1,4 @@
 from flask import Blueprint, jsonify, request, g
-from flask_login import current_user, login_required
 from app.utils.decorators import role_required
 from app.utils.notify import create_notification
 from app.utils.auth_helpers import jwt_required  # ✅ add this
