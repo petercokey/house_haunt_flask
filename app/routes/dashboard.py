@@ -15,25 +15,50 @@ def ping():
 # -------------------------
 # Agent Dashboard
 # -------------------------
+
 @bp.route("/agent", methods=["GET"])
 @jwt_required()
 @role_required("agent")
 def agent_dashboard():
     user_id = g.user["_id"]
 
+    # Fetch data from MongoDB
     kyc = mongo.db.kyc.find_one({"agent_id": user_id})
     wallet = mongo.db.wallets.find_one({"user_id": user_id})
     houses = list(mongo.db.houses.find({"agent_id": user_id}))
     reviews = list(mongo.db.reviews.find({"agent_id": user_id}))
     contact_requests = list(mongo.db.contact_requests.find({"agent_id": user_id}))
 
+    # Compute average rating safely
     avg_rating = round(sum(r.get("rating", 0) for r in reviews) / len(reviews), 2) if reviews else 0
+
+    # Convert ObjectIds in houses
+    houses_data = [{
+        "id": str(h.get("_id")),
+        "title": h.get("title", ""),
+        "price": h.get("price", 0),
+        "location": h.get("location", "")
+    } for h in houses]
+
+    # Convert ObjectIds in reviews
+    reviews_data = [{
+        "rating": r.get("rating", 0),
+        "comment": r.get("comment", ""),
+        "haunter_id": str(r.get("haunter_id"))
+    } for r in reviews]
+
+    # Convert ObjectIds in contact requests
+    contact_requests_data = [{
+        "id": str(req.get("_id")),
+        "haunter_id": str(req.get("haunter_id")),
+        "requested_at": req.get("created_at")
+    } for req in contact_requests]
 
     return jsonify({
         "agent": {
             "id": str(user_id),
-            "name": g.user.get("username"),
-            "email": g.user.get("email"),
+            "name": g.user.get("username", ""),
+            "email": g.user.get("email", ""),
             "joined_on": g.user.get("created_at")
         },
         "wallet": {
@@ -45,24 +70,12 @@ def agent_dashboard():
             "uploaded_at": kyc.get("uploaded_at") if kyc else None,
             "reviewed_at": kyc.get("reviewed_at") if kyc else None
         },
-        "houses": [{
-            "id": str(h["_id"]),
-            "title": h["title"],
-            "price": h["price"],
-            "location": h["location"]
-        } for h in houses],
-        "reviews": [{
-            "rating": r["rating"],
-            "comment": r.get("comment", ""),
-            "haunter_id": str(r["haunter_id"])
-        } for r in reviews],
+        "houses": houses_data,
+        "reviews": reviews_data,
         "average_rating": avg_rating,
-        "contact_requests": [{
-            "id": str(req["_id"]),
-            "haunter_id": str(req["haunter_id"]),
-            "requested_at": req.get("created_at")
-        } for req in contact_requests]
+        "contact_requests": contact_requests_data
     }), 200
+
 
 
 # -------------------------

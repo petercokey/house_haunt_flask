@@ -76,6 +76,8 @@ def ping():
 # -----------------------------
 # Agent: Create House
 # -----------------------------
+
+
 @bp.route("/create-house", methods=["POST"])
 @jwt_required()
 @role_required("agent")
@@ -102,6 +104,7 @@ def create_house():
     if not allowed_file(file.filename):
         return jsonify({"error": "Invalid image type."}), 400
 
+    # Save image
     folder = os.path.join(current_app.root_path, "uploads", "house_images")
     os.makedirs(folder, exist_ok=True)
 
@@ -111,6 +114,7 @@ def create_house():
     file_path = os.path.join(folder, filename)
     file.save(file_path)
 
+    # Prepare data for MongoDB
     data = {
         "agent_id": str(user["_id"]),
         "title": title,
@@ -122,12 +126,17 @@ def create_house():
         "status": "pending",
     }
 
-    result = House.create(data)
+    # Insert into MongoDB
+    result = House.create(data)  # result.inserted_id is ObjectId
+
+    # Convert ObjectId to string for JSON
+    house_data = {**data, "id": str(result.inserted_id)}
 
     return jsonify({
         "message": "House created successfully!",
-        "house": {**data, "id": str(result.inserted_id)}
+        "house": house_data
     }), 201
+
 
 
 # -----------------------------
