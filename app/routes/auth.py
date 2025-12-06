@@ -7,20 +7,12 @@ from bson import ObjectId
 from app import mongo
 from app.utils.auth_helpers import jwt_required
 import os
-from flask_jwt_extended import (
-    jwt_required,
-    get_jwt,
-    create_access_token,
-    set_access_cookies,
-    unset_jwt_cookies,
-    JWTManager
-)
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key")
 
-jwt = JWTManager()
+
 # ==========================================================
 # 🔹 Register
 # ==========================================================
@@ -122,42 +114,9 @@ def get_current_user():
 
 # ==========================================================
 # 🔹 Logout
+# ==========================================================
 @bp.route("/logout", methods=["POST"])
-@jwt_required()
 def logout():
-    jti = get_jwt()["jti"]  # JWT unique identifier
-    # Store revoked token in MongoDB
-    mongo.db.revoked_tokens.insert_one({"jti": jti, "revoked_at": datetime.utcnow()})
-
-    # Delete cookie for frontend
-    response = jsonify({"message": "Logged out successfully"})
-    unset_jwt_cookies(response)  # Removes access & refresh cookies if used
-    return response, 200
-
-# =========================
-# JWT blocklist check
-# =========================
-@jwt.token_in_blocklist_loader
-def check_if_token_revoked(jwt_header, jwt_payload):
-    jti = jwt_payload["jti"]
-    token = mongo.db.revoked_tokens.find_one({"jti": jti})
-    return token is not None
-
-# =========================
-# Example /auth/me route
-# =========================
-@bp.route("/me", methods=["GET"])
-@jwt_required()
-def me():
-    user_id = g.user["_id"]
-    user = mongo.db.users.find_one({"_id": user_id})
-    if not user:
-        return jsonify(None), 404
-
-    return jsonify({
-        "id": str(user["_id"]),
-        "username": user["username"],
-        "email": user["email"],
-        "role": user.get("role", "haunter"),
-        "created_at": user.get("created_at")
-    }), 200
+    response = make_response(jsonify({"message": "Logged out"}), 200)
+    response.delete_cookie("access_token_cookie")
+    return response
