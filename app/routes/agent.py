@@ -78,6 +78,17 @@ def ping():
 # -----------------------------
 
 
+def convert_objectid(obj):
+    """Recursively convert all ObjectIds in dict/list to strings."""
+    if isinstance(obj, list):
+        return [convert_objectid(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {k: convert_objectid(v) for k, v in obj.items()}
+    elif isinstance(obj, ObjectId):
+        return str(obj)
+    else:
+        return obj
+
 @bp.route("/create-house", methods=["POST"])
 @jwt_required()
 @role_required("agent")
@@ -116,7 +127,7 @@ def create_house():
 
     # Prepare data for MongoDB
     data = {
-        "agent_id": str(user["_id"]),
+        "agent_id": user["_id"],  # store as ObjectId if your DB expects it
         "title": title,
         "description": description,
         "location": location,
@@ -129,8 +140,8 @@ def create_house():
     # Insert into MongoDB
     result = House.create(data)  # result.inserted_id is ObjectId
 
-    # Convert ObjectId to string for JSON
-    house_data = {**data, "id": str(result.inserted_id)}
+    # Convert all ObjectIds in response to strings
+    house_data = convert_objectid({**data, "id": result.inserted_id})
 
     return jsonify({
         "message": "House created successfully!",

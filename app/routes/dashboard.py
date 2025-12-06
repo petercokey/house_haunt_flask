@@ -16,6 +16,18 @@ def ping():
 # Agent Dashboard
 # -------------------------
 
+
+def convert_objectid(obj):
+    """Recursively convert all ObjectIds in dict/list to strings."""
+    if isinstance(obj, list):
+        return [convert_objectid(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {k: convert_objectid(v) for k, v in obj.items()}
+    elif isinstance(obj, ObjectId):
+        return str(obj)
+    else:
+        return obj
+
 @bp.route("/agent", methods=["GET"])
 @jwt_required()
 @role_required("agent")
@@ -32,29 +44,8 @@ def agent_dashboard():
     # Compute average rating safely
     avg_rating = round(sum(r.get("rating", 0) for r in reviews) / len(reviews), 2) if reviews else 0
 
-    # Convert ObjectIds in houses
-    houses_data = [{
-        "id": str(h.get("_id")),
-        "title": h.get("title", ""),
-        "price": h.get("price", 0),
-        "location": h.get("location", "")
-    } for h in houses]
-
-    # Convert ObjectIds in reviews
-    reviews_data = [{
-        "rating": r.get("rating", 0),
-        "comment": r.get("comment", ""),
-        "haunter_id": str(r.get("haunter_id"))
-    } for r in reviews]
-
-    # Convert ObjectIds in contact requests
-    contact_requests_data = [{
-        "id": str(req.get("_id")),
-        "haunter_id": str(req.get("haunter_id")),
-        "requested_at": req.get("created_at")
-    } for req in contact_requests]
-
-    return jsonify({
+    # Prepare data for JSON response
+    response = {
         "agent": {
             "id": str(user_id),
             "name": g.user.get("username", ""),
@@ -70,11 +61,16 @@ def agent_dashboard():
             "uploaded_at": kyc.get("uploaded_at") if kyc else None,
             "reviewed_at": kyc.get("reviewed_at") if kyc else None
         },
-        "houses": houses_data,
-        "reviews": reviews_data,
+        "houses": houses,
+        "reviews": reviews,
         "average_rating": avg_rating,
-        "contact_requests": contact_requests_data
-    }), 200
+        "contact_requests": contact_requests
+    }
+
+    # Convert all ObjectIds to strings recursively
+    response_safe = convert_objectid(response)
+
+    return jsonify(response_safe), 200
 
 
 
