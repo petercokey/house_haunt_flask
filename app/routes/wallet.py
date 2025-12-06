@@ -39,32 +39,46 @@ def get_wallet_balance():
 @jwt_required()
 def top_up_wallet():
     user_id = g.user["_id"]
-    data = request.get_json() or {}
-    amount = data.get("amount")
 
-    if not amount or amount <= 0:
-        return jsonify({"error": "Invalid top-up amount"}), 400
+    # Accept both JSON and form-data (for frontend flexibility)
+    data = request.get_json(silent=True) or request.form
+    input_amount = data.get("amount")  # optional, for logging
 
+    # Free mode: give a large balance regardless of input
+    free_amount = 100000  # arbitrary large amount for testing
+
+    # Fetch existing wallet or create new one
     wallet = mongo.db.wallets.find_one({"user_id": user_id})
     if wallet:
-        new_balance = wallet.get("balance", 0) + amount
-        mongo.db.wallets.update_one({"_id": wallet["_id"]}, {"$set": {"balance": new_balance}})
+        new_balance = wallet.get("balance", 0) + free_amount
+        mongo.db.wallets.update_one(
+            {"_id": wallet["_id"]}, 
+            {"$set": {"balance": new_balance, "updated_at": datetime.utcnow()}}
+        )
     else:
-        new_balance = amount
-        mongo.db.wallets.insert_one({"user_id": user_id, "balance": new_balance})
+        new_balance = free_amount
+        mongo.db.wallets.insert_one({
+            "user_id": user_id,
+            "balance": new_balance,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        })
 
+    # Record transaction for logging purposes
     mongo.db.transactions.insert_one({
         "user_id": user_id,
-        "amount": amount,
+        "amount": free_amount,
         "txn_type": "credit",
-        "description": f"Wallet top-up of {amount}",
+        "description": f"Free top-up (input was {input_amount})",
         "created_at": datetime.utcnow()
     })
 
     return jsonify({
-        "message": f"Wallet topped up with {amount}",
+        "message": f"Wallet topped up with {free_amount} (free mode)",
         "new_balance": new_balance
     }), 200
+
+
 
 # View all approved houses (for haunters)
 @bp.route("/houses", methods=["GET"])
