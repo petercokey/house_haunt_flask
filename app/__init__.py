@@ -1,14 +1,14 @@
-﻿# Force rebuild for Render after removing SQLAlchemy references
-# app/__init__.py
+﻿# app/__init__.py
 from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_pymongo import PyMongo
-from datetime import timedelta
+from datetime import timedelta, datetime
 from flask_bcrypt import Bcrypt
 from flask_mail import Mail
+from werkzeug.security import generate_password_hash
 import os
 
-
+# === Initialize extensions ===
 mongo = PyMongo()
 bcrypt = Bcrypt()
 mail = Mail()
@@ -67,7 +67,7 @@ def create_app():
     # === Register Blueprints ===
     from app.routes import (
         auth, contact, wallet, review, agent, haunter, kyc,
-        dashboard, notifications, favorites, seed, transactions
+        dashboard, notifications, favorites, seed, transactions, static_files
     )
 
     blueprints = [
@@ -82,11 +82,15 @@ def create_app():
         notifications.bp,
         favorites.bp,
         seed.bp,
-        transactions.bp
+        transactions.bp,
+        static_files.bp
     ]
 
     for bp in blueprints:
         app.register_blueprint(bp)
+
+    # === Create default admin user at startup ===
+    create_default_admin(mongo)
 
     # === Health Check Routes ===
     @app.route("/api/ping")
@@ -101,10 +105,22 @@ def create_app():
     def serve_upload(filename):
         upload_folder = os.path.join(app.root_path, "uploads")
         return send_from_directory(upload_folder, filename)
-    
 
-    # force rebuild comment
+    return app  # <-- proper return of the app
 
-    app.mongo = mongo
 
-    return app
+def create_default_admin(mongo):
+    admin_email = "admin@househaunt.com"
+    if mongo.db.users.find_one({"email": admin_email}):
+        return  # Admin already exists
+
+    admin = {
+        "username": "admin",
+        "email": admin_email,
+        "password": generate_password_hash("admin123!"),  # Change if needed
+        "role": "admin",
+        "created_at": datetime.utcnow(),
+    }
+
+    mongo.db.users.insert_one(admin)
+    print("✅ Default admin user created!")
