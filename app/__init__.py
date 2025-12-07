@@ -1,5 +1,4 @@
-﻿# app/__init__.py
-from flask import Flask, jsonify, send_from_directory
+﻿from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from datetime import timedelta, datetime
@@ -8,7 +7,7 @@ from flask_mail import Mail
 from werkzeug.security import generate_password_hash
 import os
 
-# === Initialize extensions ===
+# === Extensions ===
 mongo = PyMongo()
 bcrypt = Bcrypt()
 mail = Mail()
@@ -71,25 +70,26 @@ def create_app():
     )
 
     blueprints = [
-        auth.bp,
-        contact.bp,
-        wallet.bp,
-        review.bp,
-        agent.bp,
-        haunter.bp,
-        kyc.bp,
-        dashboard.bp,
-        notifications.bp,
-        favorites.bp,
-        seed.bp,
-        transactions.bp,
-        static_files.bp
-    ]
+    auth.bp,
+    contact.bp,
+    wallet.bp,
+    review.bp,
+    agent.bp,
+    haunter.bp,
+    kyc.bp,
+    dashboard.bp,
+    notifications.bp,
+    favorites.bp,
+    seed.bp,
+    transactions.bp,
+    static_files.bp_static  # use bp_static here
+]
+
 
     for bp in blueprints:
         app.register_blueprint(bp)
 
-    # === Create default admin user at startup ===
+    # === Create default admin if not exists ===
     create_default_admin(mongo)
 
     # === Health Check Routes ===
@@ -106,18 +106,19 @@ def create_app():
         upload_folder = os.path.join(app.root_path, "uploads")
         return send_from_directory(upload_folder, filename)
 
-    return app  # <-- proper return of the app
+    return app
 
 
 def create_default_admin(mongo):
     admin_email = "admin@househaunt.com"
+
     if mongo.db.users.find_one({"email": admin_email}):
-        return  # Admin already exists
+        return  # Admin already exists here
 
     admin = {
         "username": "admin",
         "email": admin_email,
-        "password": generate_password_hash("admin123!"),  # Change if needed
+        "password": generate_password_hash("SuperSecret123!"),
         "role": "admin",
         "created_at": datetime.utcnow(),
     }
