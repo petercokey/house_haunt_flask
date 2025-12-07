@@ -1,5 +1,5 @@
 # app/routes/haunter.py
-from flask import Blueprint, jsonify, g
+from flask import Blueprint, jsonify, g, request
 from datetime import datetime
 from bson import ObjectId
 from app import mongo
@@ -22,19 +22,28 @@ def ping():
 def get_all_houses():
     houses = list(mongo.db.houses.find({"status": "approved"}).sort("created_at", -1))
     result = []
+
+    base_url = request.host_url.rstrip("/")
+
     for house in houses:
         agent = mongo.db.users.find_one({"_id": house["agent_id"]})
+
+        image_path = house.get("image_path")
+        image_url = f"{base_url}{image_path}" if image_path else None
+
         result.append({
             "id": str(house["_id"]),
             "title": house["title"],
             "price": house["price"],
             "location": house["location"],
             "description": house.get("description"),
-            "image_url": house.get("image_path"),
+            "image_url": image_url,
             "agent_name": agent["username"] if agent else "Unknown",
             "created_at": house.get("created_at")
         })
+
     return jsonify({"houses": result}), 200
+
 
 
 # House Details
