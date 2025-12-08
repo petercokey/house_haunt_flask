@@ -268,3 +268,34 @@ def review_house(house_id):
     Notification.create({"user_id": house["agent_id"], "message": msg})
 
     return jsonify({"message": f"House '{house['title']}' {decision} successfully.", "note": note}), 200
+
+@bp.route("/pending-houses", methods=["GET"])
+@jwt_required()
+@admin_required
+def get_pending_houses():
+    houses = list(current_app.mongo.db.houses.find({"status": "pending"}))
+
+    results = []
+    for h in houses:
+        agent = User.find_by_id(h["agent_id"])
+
+        results.append({
+            "id": str(h["_id"]),
+            "title": h.get("title"),
+            "description": h.get("description"),
+            "location": h.get("location"),
+            "price": h.get("price"),
+            "image_path": h.get("image_path"),
+            "created_at": h.get("created_at"),
+            "status": h.get("status"),
+            "agent": {
+                "id": h.get("agent_id"),
+                "name": agent.get("username") if agent else "Unknown Agent",
+                "email": agent.get("email") if agent else "N/A"
+            }
+        })
+
+    return jsonify({
+        "total_pending": len(results),
+        "pending_houses": results
+    }), 200
