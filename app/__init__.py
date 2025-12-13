@@ -62,11 +62,12 @@ def create_app():
             }
         },
     )
+    
 
     # === Register Blueprints ===
     from app.routes import (
         auth, contact, wallet, review, agent, haunter, kyc,
-        dashboard, notifications, favorites, seed, transactions, static_files
+        dashboard, notifications, favorites, seed, transactions, static_files, admin
     )
 
     blueprints = [
@@ -82,7 +83,8 @@ def create_app():
     favorites.bp,
     seed.bp,
     transactions.bp,
-    static_files.bp_static  # use bp_static here
+    static_files.bp_static,  # use bp_static here
+    admin.bp_admin
 ]
 
 
