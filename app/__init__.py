@@ -66,26 +66,29 @@ def create_app():
 
     # === Register Blueprints ===
     from app.routes import (
-        auth, contact, wallet, review, agent, haunter, kyc,
-        dashboard, notifications, favorites, seed, transactions, static_files, admin
-    )
+    auth, contact, wallet, review, agent, haunter, kyc,
+    dashboard, notifications, favorites, seed, transactions, static_files, admin,
+)
+   
+
 
     blueprints = [
-    auth.bp,
-    contact.bp,
-    wallet.bp,
-    review.bp,
-    agent.bp,
-    haunter.bp,
-    kyc.bp,
-    dashboard.bp,
-    notifications.bp,
-    favorites.bp,
-    seed.bp,
-    transactions.bp,
-    static_files.bp_static,  # use bp_static here
-    admin.bp_admin
+    auth,
+    contact,
+    wallet,
+    review,
+    agent,
+    haunter,
+    kyc,
+    dashboard,
+    notifications,
+    favorites,
+    seed,
+    transactions,
+    static_files,
+    admin,
 ]
+
 
 
     for bp in blueprints:
