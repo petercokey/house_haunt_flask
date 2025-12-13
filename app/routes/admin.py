@@ -1,5 +1,4 @@
 # app/routes/admin.py
-
 from flask import Blueprint, jsonify, request
 from bson import ObjectId
 from datetime import datetime
