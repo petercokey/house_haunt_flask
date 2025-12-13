@@ -43,7 +43,6 @@ def create_app():
         MAIL_PASSWORD=os.getenv("MAIL_PASSWORD"),
     )
 
-    # === Initialize Extensions ===
     bcrypt.init_app(app)
     mail.init_app(app)
 
@@ -62,50 +61,46 @@ def create_app():
             }
         },
     )
-    
 
     # === Register Blueprints ===
-from app.routes import (
-    auth_bp,
-    contact_bp,
-    wallet_bp,
-    review_bp,
-    agent_bp,
-    haunter_bp,
-    kyc_bp,
-    dashboard_bp,
-    notifications_bp,
-    favorites_bp,
-    seed_bp,
-    transactions_bp,
-    static_files_bp,
-    admin_bp,
-)
+    from app.routes import (
+        auth_bp,
+        contact_bp,
+        wallet_bp,
+        review_bp,
+        agent_bp,
+        haunter_bp,
+        kyc_bp,
+        dashboard_bp,
+        notifications_bp,
+        favorites_bp,
+        seed_bp,
+        transactions_bp,
+        static_files_bp,
+        admin_bp,
+    )
 
-blueprints = [
-    auth_bp,
-    contact_bp,
-    wallet_bp,
-    review_bp,
-    agent_bp,
-    haunter_bp,
-    kyc_bp,
-    dashboard_bp,
-    notifications_bp,
-    favorites_bp,
-    seed_bp,
-    transactions_bp,
-    static_files_bp,
-    admin_bp,
-]
+    blueprints = [
+        auth_bp,
+        contact_bp,
+        wallet_bp,
+        review_bp,
+        agent_bp,
+        haunter_bp,
+        kyc_bp,
+        dashboard_bp,
+        notifications_bp,
+        favorites_bp,
+        seed_bp,
+        transactions_bp,
+        static_files_bp,
+        admin_bp,
+    ]
 
+    for bp in blueprints:
+        app.register_blueprint(bp)
 
-
-
-for bp in blueprints:
-    app.register_blueprint(bp)
-
-    # === Create default admin if not exists ===
+    # === Create default admin ===
     create_default_admin(mongo)
 
     # === Health Check Routes ===
@@ -129,7 +124,7 @@ def create_default_admin(mongo):
     admin_email = "admin@househaunt.com"
 
     if mongo.db.users.find_one({"email": admin_email}):
-        return  # Admin already exists here
+        return
 
     admin = {
         "username": "admin",
