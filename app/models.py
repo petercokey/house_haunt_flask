@@ -1,14 +1,21 @@
-﻿# app/models.py
+# app/models.py
 from datetime import datetime
 from flask import current_app
 from bson import ObjectId
 
-# ðŸ”¹ Utility function to get MongoDB collections
 def get_collection(name):
+    """Get a MongoDB collection safely."""
     return current_app.mongo.db[name]
 
+def to_objectid(id_str):
+    """Safely convert string to ObjectId, return None if invalid."""
+    try:
+        return ObjectId(id_str)
+    except Exception:
+        return None
+
 # ==========================================================
-# ðŸ”¹ USER MODEL
+# USER MODEL
 # ==========================================================
 class User:
     collection = "users"
@@ -24,17 +31,18 @@ class User:
 
     @staticmethod
     def find_by_id(user_id):
-        return get_collection(User.collection).find_one({"_id": ObjectId(user_id)})
+        oid = to_objectid(user_id)
+        return get_collection(User.collection).find_one({"_id": oid}) if oid else None
 
     @staticmethod
     def update(user_id, updates):
-        return get_collection(User.collection).update_one(
-            {"_id": ObjectId(user_id)}, {"$set": updates}
-        )
-
+        oid = to_objectid(user_id)
+        if not oid:
+            return None
+        return get_collection(User.collection).update_one({"_id": oid}, {"$set": updates})
 
 # ==========================================================
-# ðŸ”¹ HOUSE MODEL
+# HOUSE MODEL
 # ==========================================================
 class House:
     collection = "houses"
@@ -51,30 +59,31 @@ class House:
 
     @staticmethod
     def find_by_id(house_id):
-        return get_collection(House.collection).find_one({"_id": ObjectId(house_id)})
+        oid = to_objectid(house_id)
+        return get_collection(House.collection).find_one({"_id": oid}) if oid else None
 
     @staticmethod
     def update_status(house_id, status):
+        oid = to_objectid(house_id)
+        if not oid:
+            return None
         return get_collection(House.collection).update_one(
-            {"_id": ObjectId(house_id)}, {"$set": {"status": status}}
+            {"_id": oid}, {"$set": {"status": status}}
         )
 
-
 # ==========================================================
-# ðŸ”¹ CONTACT REQUEST MODEL
+# CONTACT REQUEST MODEL
 # ==========================================================
 class ContactRequest:
     collection = "contact_requests"
 
     @staticmethod
     def create(data):
-        data["created_at"] = datetime.utcnow()
-        data["status"] = "pending"
+        data.update({"created_at": datetime.utcnow(), "status": "pending"})
         return get_collection(ContactRequest.collection).insert_one(data)
 
-
 # ==========================================================
-# ðŸ”¹ FAVORITE MODEL
+# FAVORITE MODEL
 # ==========================================================
 class Favorite:
     collection = "favorites"
@@ -86,94 +95,87 @@ class Favorite:
         if existing:
             coll.delete_one({"_id": existing["_id"]})
             return {"message": "Removed from favorites"}
-        else:
-            doc = {"haunter_id": haunter_id, "house_id": house_id, "created_at": datetime.utcnow()}
-            coll.insert_one(doc)
-            return {"message": "Added to favorites"}
+        doc = {"haunter_id": haunter_id, "house_id": house_id, "created_at": datetime.utcnow()}
+        coll.insert_one(doc)
+        return {"message": "Added to favorites"}
 
     @staticmethod
     def find_all_for_haunter(haunter_id):
         return list(get_collection(Favorite.collection).find({"haunter_id": haunter_id}))
 
-
 # ==========================================================
-# ðŸ”¹ REVIEW MODEL
+# REVIEW MODEL
 # ==========================================================
 class Review:
     collection = "reviews"
 
     @staticmethod
     def create(data):
-        data["created_at"] = datetime.utcnow()
-        data["is_flagged"] = False
+        data.update({"created_at": datetime.utcnow(), "is_flagged": False})
         return get_collection(Review.collection).insert_one(data)
 
     @staticmethod
     def find_for_agent(agent_id):
-        return list(get_collection(Review.collection).find({"agent_id": agent_id}))
-
+        return list(get_collection(Review.collection).find({"agent_id": agent_id}).sort("created_at", -1))
 
 # ==========================================================
-# ðŸ”¹ KYC MODEL
+# KYC MODEL
 # ==========================================================
 class KYC:
     collection = "kyc"
 
     @staticmethod
     def create(data):
-        data["submitted_at"] = datetime.utcnow()
-        data["status"] = "pending"
+        data.update({"submitted_at": datetime.utcnow(), "status": "pending"})
         return get_collection(KYC.collection).insert_one(data)
 
     @staticmethod
     def find_for_agent(agent_id):
         return get_collection(KYC.collection).find_one({"agent_id": agent_id})
 
-
 # ==========================================================
-# ðŸ”¹ NOTIFICATION MODEL
+# NOTIFICATION MODEL
 # ==========================================================
 class Notification:
     collection = "notifications"
 
     @staticmethod
     def create(data):
-        data["created_at"] = datetime.utcnow()
-        data["is_read"] = False
+        data.update({"created_at": datetime.utcnow(), "is_read": False})
         return get_collection(Notification.collection).insert_one(data)
 
     @staticmethod
     def find_for_user(user_id):
-        return list(get_collection(Notification.collection).find({"user_id": user_id}))
-
+        return list(get_collection(Notification.collection).find({"user_id": user_id}).sort("created_at", -1))
 
 # ==========================================================
-# ðŸ”¹ WALLET MODEL
+# WALLET MODEL
 # ==========================================================
 class Wallet:
     collection = "wallets"
 
     @staticmethod
     def get_or_create(user_id):
-        wallet = get_collection(Wallet.collection).find_one({"user_id": user_id})
+        coll = get_collection(Wallet.collection)
+        wallet = coll.find_one({"user_id": user_id})
         if not wallet:
             wallet = {"user_id": user_id, "balance": 0.0, "updated_at": datetime.utcnow()}
-            get_collection(Wallet.collection).insert_one(wallet)
+            coll.insert_one(wallet)
         return wallet
 
     @staticmethod
     def update_balance(user_id, amount):
+        coll = get_collection(Wallet.collection)
         wallet = Wallet.get_or_create(user_id)
         new_balance = float(wallet["balance"]) + float(amount)
-        get_collection(Wallet.collection).update_one(
+        coll.update_one(
             {"user_id": user_id},
             {"$set": {"balance": new_balance, "updated_at": datetime.utcnow()}},
         )
         return new_balance
 
-
 # ==========================================================
-# ðŸ”¹ TRANSACTION MODEL
+# TRANSACTION MODEL
 # ==========================================================
 class Transaction:
     collection = "transactions"
@@ -185,4 +187,4 @@ class Transaction:
 
     @staticmethod
     def find_for_user(user_id):
-        return list(get_collection(Transaction.collection).find({"user_id": user_id}))
+        return list(get_collection(Transaction.collection).find({"user_id": user_id}).sort("created_at", -1))
