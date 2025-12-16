@@ -1,4 +1,5 @@
 print("ADMIN ROUTES LOADED FROM:", __file__)
+raise RuntimeError("ADMIN FILE LOADED")
 # app/routes/admin.py
 from flask import Blueprint, jsonify, request
 from bson import ObjectId
