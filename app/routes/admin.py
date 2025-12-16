@@ -144,3 +144,49 @@ def review_house(house_id):
     return jsonify({
         "message": f"House '{house.get('title')}' has been {decision}"
     }), 200
+
+# ============================================================
+# GET ALL HAUNTERS
+# ============================================================
+@bp.route("/haunters", methods=["GET"])
+@jwt_required()
+@admin_required
+def get_all_haunters():
+    haunters = list(mongo.db.users.find({"role": "haunter"}))
+
+    results = []
+    for h in haunters:
+        results.append({
+            "id": str(h["_id"]),
+            "username": h.get("username"),
+            "email": h.get("email"),
+            "created_at": h.get("created_at"),
+        })
+
+    return jsonify({
+        "total": len(results),
+        "haunters": results
+    }), 200
+# ============================================================
+# GET ALL AGENTS
+# ============================================================
+@bp.route("/agents", methods=["GET"])
+@jwt_required()
+@admin_required
+def get_all_agents():
+    agents = list(mongo.db.users.find({"role": "agent"}))
+
+    results = []
+    for a in agents:
+        results.append({
+            "id": str(a["_id"]),
+            "username": a.get("username"),
+            "email": a.get("email"),
+            "is_verified": a.get("is_verified", False),
+            "created_at": a.get("created_at"),
+        })
+
+    return jsonify({
+        "total": len(results),
+        "agents": results
+    }), 200
