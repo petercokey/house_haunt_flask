@@ -1,5 +1,4 @@
 print("ADMIN ROUTES LOADED FROM:", __file__)
-raise RuntimeError("ADMIN FILE LOADED")
 # app/routes/admin.py
 from flask import Blueprint, jsonify, request
 from bson import ObjectId
@@ -61,32 +60,10 @@ def admin_dashboard():
 # GET ALL PENDING HOUSES
 # ============================================================
 @bp.route("/pending-houses", methods=["GET"])
-@jwt_required()
-@admin_required
+# @jwt_required()
+# @admin_required
 def get_pending_houses():
-    houses = list(mongo.db.houses.find({"status": "pending"}))
-    results = []
-
-    for h in houses:
-        agent = mongo.db.users.find_one({"_id": h.get("agent_id")})
-
-        results.append({
-            "id": str(h["_id"]),
-            "title": h.get("title"),
-            "description": h.get("description"),
-            "location": h.get("location"),
-            "price": h.get("price"),
-            "image_url": h.get("image_path"),
-            "status": h.get("status"),
-            "agent": {
-                "id": str(agent["_id"]) if agent else None,
-                "name": agent.get("username") if agent else "Unknown",
-            },
-            "created_at": h.get("created_at"),
-        })
-
-    return jsonify({"pending_houses": results}), 200
-
+    return {"ok": True}
 
 # ============================================================
 # GET ALL HOUSES
