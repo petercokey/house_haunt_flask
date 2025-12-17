@@ -11,6 +11,7 @@ bp = Blueprint("agent", __name__, url_prefix="/api/agent")
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 
+#files
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
