@@ -3,7 +3,7 @@ from werkzeug.utils import secure_filename
 from datetime import datetime
 import os
 from bson import ObjectId
-
+from app import mongo
 from app.utils.auth_helpers import jwt_required
 from app.utils.decorators import role_required
 
@@ -37,49 +37,50 @@ def create_house():
     price = form.get("price")
 
     if not all([title, description, location, price]):
-        return jsonify({"error": "All fields are required"}), 400
+        return jsonify({"error": "All fields are required."}), 400
 
     if "image" not in request.files:
-        return jsonify({"error": "House image is required"}), 400
+        return jsonify({"error": "House image is required."}), 400
 
     file = request.files["image"]
+    if file.filename == "":
+        return jsonify({"error": "No file selected."}), 400
 
-    if file.filename == "" or not allowed_file(file.filename):
-        return jsonify({"error": "Invalid image file"}), 400
+    if not allowed_file(file.filename):
+        return jsonify({"error": "Invalid image type."}), 400
 
-    # ✅ CORRECT STATIC PATH
-    upload_dir = os.path.join(
+    # CORRECT folder
+    folder = os.path.join(
         current_app.root_path,
         "static",
         "uploads",
         "house_images"
     )
-    os.makedirs(upload_dir, exist_ok=True)
+    os.makedirs(folder, exist_ok=True)
 
     filename = secure_filename(
         f"{user['_id']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{file.filename}"
     )
-    file.save(os.path.join(upload_dir, filename))
-
-    image_path = f"/uploads/house_images/{filename}"
+    file_path = os.path.join(folder, filename)
+    file.save(file_path)
 
     data = {
-        "agent_id": user["_id"],
+        "agent_id": user["_id"],  # ObjectId
         "title": title,
         "description": description,
         "location": location,
         "price": float(price),
-        "image_path": image_path,
-        "status": "pending",
+        "image_path": f"/uploads/house_images/{filename}",
         "created_at": datetime.utcnow(),
+        "status": "pending",
     }
 
-    result = current_app.mongo.db.houses.insert_one(data)
+    result = mongo.db.houses.insert_one(data)
 
-    data["id"] = str(result.inserted_id)
-    data["agent_id"] = str(user["_id"])
-
-    return jsonify({"message": "House created", "house": data}), 201
+    return jsonify({
+        "message": "House created successfully",
+        "house_id": str(result.inserted_id)
+    }), 201
 
 
 # ===============================
