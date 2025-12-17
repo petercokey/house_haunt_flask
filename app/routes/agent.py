@@ -11,10 +11,28 @@ bp = Blueprint("agent", __name__, url_prefix="/api/agent")
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 
-#files
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def house_image_upload_dir():
+    """
+    Absolute filesystem path where house images are stored
+    """
+    return os.path.join(
+        current_app.root_path,
+        "static",
+        "uploads",
+        "house_images",
+    )
+
+
+def house_image_db_path(filename):
+    """
+    Path stored in MongoDB (MUST match static_files route)
+    """
+    return f"uploads/house_images/{filename}"
 
 
 @bp.route("/ping")
@@ -44,26 +62,20 @@ def create_house():
         return jsonify({"error": "House image is required."}), 400
 
     file = request.files["image"]
-    if file.filename == "":
+    if not file or file.filename == "":
         return jsonify({"error": "No file selected."}), 400
 
     if not allowed_file(file.filename):
         return jsonify({"error": "Invalid image type."}), 400
 
-    # CORRECT folder
-    folder = os.path.join(
-        current_app.root_path,
-        "static",
-        "uploads",
-        "house_images"
-    )
-    os.makedirs(folder, exist_ok=True)
+    upload_dir = house_image_upload_dir()
+    os.makedirs(upload_dir, exist_ok=True)
 
     filename = secure_filename(
         f"{user['_id']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{file.filename}"
     )
-    file_path = os.path.join(folder, filename)
-    file.save(file_path)
+
+    file.save(os.path.join(upload_dir, filename))
 
     data = {
         "agent_id": user["_id"],  # ObjectId
@@ -71,7 +83,7 @@ def create_house():
         "description": description,
         "location": location,
         "price": float(price),
-        "image_path": f"/uploads/house_images/{filename}",
+        "image_path": house_image_db_path(filename),
         "created_at": datetime.utcnow(),
         "status": "pending",
     }
@@ -91,9 +103,7 @@ def create_house():
 @jwt_required()
 @role_required("agent")
 def my_houses():
-    houses = list(
-        current_app.mongo.db.houses.find({"agent_id": g.user["_id"]})
-    )
+    houses = list(mongo.db.houses.find({"agent_id": g.user["_id"]}))
 
     for h in houses:
         h["id"] = str(h["_id"])
@@ -111,7 +121,7 @@ def my_houses():
 @role_required("agent")
 def edit_house(house_id):
     oid = ObjectId(house_id)
-    house = current_app.mongo.db.houses.find_one(
+    house = mongo.db.houses.find_one(
         {"_id": oid, "agent_id": g.user["_id"]}
     )
 
@@ -128,21 +138,17 @@ def edit_house(house_id):
     if "image" in request.files:
         file = request.files["image"]
         if file and allowed_file(file.filename):
-            upload_dir = os.path.join(
-                current_app.root_path,
-                "static",
-                "uploads",
-                "house_images"
-            )
+            upload_dir = house_image_upload_dir()
             os.makedirs(upload_dir, exist_ok=True)
 
             filename = secure_filename(
                 f"{g.user['_id']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{file.filename}"
             )
-            file.save(os.path.join(upload_dir, filename))
-            updates["image_path"] = f"/uploads/house_images/{filename}"
 
-    current_app.mongo.db.houses.update_one({"_id": oid}, {"$set": updates})
+            file.save(os.path.join(upload_dir, filename))
+            updates["image_path"] = house_image_db_path(filename)
+
+    mongo.db.houses.update_one({"_id": oid}, {"$set": updates})
     return jsonify({"message": "House updated"}), 200
 
 
@@ -153,7 +159,7 @@ def edit_house(house_id):
 @jwt_required()
 @role_required("agent")
 def delete_house(house_id):
-    result = current_app.mongo.db.houses.delete_one({
+    result = mongo.db.houses.delete_one({
         "_id": ObjectId(house_id),
         "agent_id": g.user["_id"]
     })

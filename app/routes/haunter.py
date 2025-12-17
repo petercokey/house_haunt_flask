@@ -10,6 +10,21 @@ from app.utils.notify import create_notification
 bp = Blueprint("haunter", __name__, url_prefix="/api/haunter")
 
 
+# ============================================================
+# Helper: Safe image URL builder
+# ============================================================
+def build_image_url(image_path: str | None):
+    """
+    Converts stored image_path (e.g. /uploads/house_images/x.jpg)
+    into a fully qualified, browser-accessible URL.
+    """
+    if not image_path:
+        return None
+
+    base_url = request.host_url.rstrip("/")
+    return f"{base_url}/api/files{image_path}"
+
+
 @bp.route("/ping")
 def ping():
     return jsonify({"message": "haunter blueprint active!"}), 200
@@ -26,16 +41,10 @@ def get_all_houses():
         mongo.db.houses.find({"status": "approved"}).sort("created_at", -1)
     )
 
-    base_url = request.host_url.rstrip("/")
     results = []
 
     for house in houses:
         agent = mongo.db.users.find_one({"_id": house.get("agent_id")})
-
-        image_path = house.get("image_path")
-        image_url = (
-            f"{base_url}/api/files{image_path}" if image_path else None
-        )
 
         results.append({
             "id": str(house["_id"]),
@@ -43,7 +52,7 @@ def get_all_houses():
             "price": house["price"],
             "location": house["location"],
             "description": house.get("description"),
-            "image_url": image_url,
+            "image_url": build_image_url(house.get("image_path")),
             "agent_name": agent["username"] if agent else "Unknown",
             "created_at": house.get("created_at"),
         })
@@ -60,19 +69,13 @@ def get_all_houses():
 def get_house_details(house_id):
     house = mongo.db.houses.find_one({
         "_id": ObjectId(house_id),
-        "status": "approved"
+        "status": "approved",
     })
 
     if not house:
         return jsonify({"error": "House not found or not approved."}), 404
 
     agent = mongo.db.users.find_one({"_id": house.get("agent_id")})
-    base_url = request.host_url.rstrip("/")
-
-    image_path = house.get("image_path")
-    image_url = (
-        f"{base_url}/api/files{image_path}" if image_path else None
-    )
 
     return jsonify({
         "id": str(house["_id"]),
@@ -80,7 +83,7 @@ def get_house_details(house_id):
         "description": house.get("description"),
         "location": house["location"],
         "price": house["price"],
-        "image_url": image_url,
+        "image_url": build_image_url(house.get("image_path")),
         "agent": {
             "id": str(agent["_id"]) if agent else None,
             "name": agent["username"] if agent else "Unknown Agent",
@@ -101,7 +104,7 @@ def contact_agent(house_id):
 
     house = mongo.db.houses.find_one({
         "_id": ObjectId(house_id),
-        "status": "approved"
+        "status": "approved",
     })
     if not house:
         return jsonify({"error": "House not found or not approved."}), 404
@@ -113,7 +116,7 @@ def contact_agent(house_id):
     new_balance = wallet["balance"] - 2
     mongo.db.wallets.update_one(
         {"_id": wallet["_id"]},
-        {"$set": {"balance": new_balance}}
+        {"$set": {"balance": new_balance}},
     )
 
     mongo.db.transactions.insert_one({
@@ -158,7 +161,7 @@ def toggle_favorite(house_id):
 
     fav = mongo.db.favorites.find_one({
         "haunter_id": user_id,
-        "house_id": house_oid
+        "house_id": house_oid,
     })
 
     if fav:
@@ -186,32 +189,25 @@ def get_favorites():
         mongo.db.favorites.find({"haunter_id": user_id})
     )
 
-    base_url = request.host_url.rstrip("/")
     results = []
 
     for fav in favorites:
         house = mongo.db.houses.find_one({
             "_id": fav["house_id"],
-            "status": "approved"
+            "status": "approved",
         })
         if not house:
             continue
-
-        image_path = house.get("image_path")
-        image_url = (
-            f"{base_url}/api/files{image_path}" if image_path else None
-        )
 
         results.append({
             "id": str(house["_id"]),
             "title": house["title"],
             "location": house["location"],
             "price": house["price"],
-            "image_url": image_url,
+            "image_url": build_image_url(house.get("image_path")),
         })
 
     return jsonify({
         "total_favorites": len(results),
-        "favorites": results
+        "favorites": results,
     }), 200
-"""  """
