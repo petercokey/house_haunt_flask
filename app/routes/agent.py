@@ -75,6 +75,7 @@ def create_house():
 # ===============================
 # MY HOUSES
 # ===============================
+#iting
 @bp.route("/my-houses", methods=["GET"])
 @jwt_required()
 @role_required("agent")
