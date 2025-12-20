@@ -14,3 +14,4 @@ Jinja2==3.1.2
 MarkupSafe==2.1.2
 python-dotenv==1.0.0
 PyJWT==2.8.0
+cloudinary>=1.39.0
