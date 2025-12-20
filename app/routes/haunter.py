@@ -1,4 +1,3 @@
-# app/routes/haunter.py
 from flask import Blueprint, jsonify, g, request
 from datetime import datetime
 from bson import ObjectId
@@ -8,21 +7,6 @@ from app.utils.auth_helpers import jwt_required
 from app.utils.notify import create_notification
 
 bp = Blueprint("haunter", __name__, url_prefix="/api/haunter")
-
-
-# ============================================================
-# Helper: Safe image URL builder
-# ============================================================
-def build_image_url(image_path: str | None):
-    """
-    Converts stored image_path (e.g. /uploads/house_images/x.jpg)
-    into a fully qualified, browser-accessible URL.
-    """
-    if not image_path:
-        return None
-
-    base_url = request.host_url.rstrip("/")
-    return f"{base_url}/api/files{image_path}"
 
 
 @bp.route("/ping")
@@ -52,7 +36,8 @@ def get_all_houses():
             "price": house["price"],
             "location": house["location"],
             "description": house.get("description"),
-            "image_url": build_image_url(house.get("image_path")),
+            # ✅ Cloudinary URL passed directly
+            "image_url": house.get("image_url"),
             "agent_name": agent["username"] if agent else "Unknown",
             "created_at": house.get("created_at"),
         })
@@ -83,7 +68,8 @@ def get_house_details(house_id):
         "description": house.get("description"),
         "location": house["location"],
         "price": house["price"],
-        "image_url": build_image_url(house.get("image_path")),
+        # ✅ Cloudinary URL passed directly
+        "image_url": house.get("image_url"),
         "agent": {
             "id": str(agent["_id"]) if agent else None,
             "name": agent["username"] if agent else "Unknown Agent",
@@ -94,7 +80,7 @@ def get_house_details(house_id):
 
 
 # ============================================================
-# Contact Agent (deduct credits)
+# Contact Agent
 # ============================================================
 @bp.route("/contact-agent/<house_id>", methods=["POST"])
 @jwt_required()
@@ -147,67 +133,3 @@ def contact_agent(house_id):
         "message": f"Contact request sent for '{house['title']}'.",
         "remaining_balance": new_balance,
     }), 201
-
-
-# ============================================================
-# Toggle Favorite
-# ============================================================
-@bp.route("/favorite/<house_id>", methods=["POST"])
-@jwt_required()
-@role_required("haunter")
-def toggle_favorite(house_id):
-    user_id = g.user["_id"]
-    house_oid = ObjectId(house_id)
-
-    fav = mongo.db.favorites.find_one({
-        "haunter_id": user_id,
-        "house_id": house_oid,
-    })
-
-    if fav:
-        mongo.db.favorites.delete_one({"_id": fav["_id"]})
-        return jsonify({"message": "Removed from favorites."}), 200
-
-    mongo.db.favorites.insert_one({
-        "haunter_id": user_id,
-        "house_id": house_oid,
-        "created_at": datetime.utcnow(),
-    })
-
-    return jsonify({"message": "Added to favorites."}), 201
-
-
-# ============================================================
-# Get All Favorites
-# ============================================================
-@bp.route("/favorites", methods=["GET"])
-@jwt_required()
-@role_required("haunter")
-def get_favorites():
-    user_id = g.user["_id"]
-    favorites = list(
-        mongo.db.favorites.find({"haunter_id": user_id})
-    )
-
-    results = []
-
-    for fav in favorites:
-        house = mongo.db.houses.find_one({
-            "_id": fav["house_id"],
-            "status": "approved",
-        })
-        if not house:
-            continue
-
-        results.append({
-            "id": str(house["_id"]),
-            "title": house["title"],
-            "location": house["location"],
-            "price": house["price"],
-            "image_url": build_image_url(house.get("image_path")),
-        })
-
-    return jsonify({
-        "total_favorites": len(results),
-        "favorites": results,
-    }), 200

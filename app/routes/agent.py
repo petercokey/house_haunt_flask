@@ -1,11 +1,10 @@
-from flask import Blueprint, jsonify, request, current_app, g
-from werkzeug.utils import secure_filename
+from flask import Blueprint, jsonify, request, g
 from datetime import datetime
-import os
 from bson import ObjectId
 from app import mongo
 from app.utils.auth_helpers import jwt_required
 from app.utils.decorators import role_required
+from app.utils.image_uploader import upload_house_image
 
 bp = Blueprint("agent", __name__, url_prefix="/api/agent")
 
@@ -14,25 +13,6 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
-def house_image_upload_dir():
-    """
-    Absolute filesystem path where house images are stored
-    """
-    return os.path.join(
-        current_app.root_path,
-        "static",
-        "uploads",
-        "house_images",
-    )
-
-
-def house_image_db_path(filename):
-    """
-    Path stored in MongoDB (MUST match static_files route)
-    """
-    return f"uploads/house_images/{filename}"
 
 
 @bp.route("/ping")
@@ -62,28 +42,24 @@ def create_house():
         return jsonify({"error": "House image is required."}), 400
 
     file = request.files["image"]
+
     if not file or file.filename == "":
         return jsonify({"error": "No file selected."}), 400
 
     if not allowed_file(file.filename):
         return jsonify({"error": "Invalid image type."}), 400
 
-    upload_dir = house_image_upload_dir()
-    os.makedirs(upload_dir, exist_ok=True)
-
-    filename = secure_filename(
-        f"{user['_id']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{file.filename}"
-    )
-
-    file.save(os.path.join(upload_dir, filename))
+    # === Cloudinary upload ===
+    public_id = f"{user['_id']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+    image_url = upload_house_image(file, public_id)
 
     data = {
-        "agent_id": user["_id"],  # ObjectId
+        "agent_id": user["_id"],
         "title": title,
         "description": description,
         "location": location,
         "price": float(price),
-        "image_path": house_image_db_path(filename),
+        "image_url": image_url,   # ✅ Cloudinary URL
         "created_at": datetime.utcnow(),
         "status": "pending",
     }
@@ -92,7 +68,7 @@ def create_house():
 
     return jsonify({
         "message": "House created successfully",
-        "house_id": str(result.inserted_id)
+        "house_id": str(result.inserted_id),
     }), 201
 
 
@@ -121,9 +97,11 @@ def my_houses():
 @role_required("agent")
 def edit_house(house_id):
     oid = ObjectId(house_id)
-    house = mongo.db.houses.find_one(
-        {"_id": oid, "agent_id": g.user["_id"]}
-    )
+
+    house = mongo.db.houses.find_one({
+        "_id": oid,
+        "agent_id": g.user["_id"],
+    })
 
     if not house:
         return jsonify({"error": "House not found"}), 404
@@ -138,17 +116,11 @@ def edit_house(house_id):
     if "image" in request.files:
         file = request.files["image"]
         if file and allowed_file(file.filename):
-            upload_dir = house_image_upload_dir()
-            os.makedirs(upload_dir, exist_ok=True)
-
-            filename = secure_filename(
-                f"{g.user['_id']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{file.filename}"
-            )
-
-            file.save(os.path.join(upload_dir, filename))
-            updates["image_path"] = house_image_db_path(filename)
+            public_id = f"{g.user['_id']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+            updates["image_url"] = upload_house_image(file, public_id)
 
     mongo.db.houses.update_one({"_id": oid}, {"$set": updates})
+
     return jsonify({"message": "House updated"}), 200
 
 
@@ -161,7 +133,7 @@ def edit_house(house_id):
 def delete_house(house_id):
     result = mongo.db.houses.delete_one({
         "_id": ObjectId(house_id),
-        "agent_id": g.user["_id"]
+        "agent_id": g.user["_id"],
     })
 
     if result.deleted_count == 0:
