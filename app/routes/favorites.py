@@ -32,7 +32,7 @@ def get_favorites():
                 "title": house["title"],
                 "location": house["location"],
                 "price": house["price"],
-                "image_url": house.get("image_path")
+                "image_url": house.get("image_url")
             })
 
     return jsonify({"total_favorites": len(results), "favorites": results}), 200

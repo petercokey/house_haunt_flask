@@ -37,7 +37,7 @@ def get_all_houses():
             "location": house["location"],
             "description": house.get("description"),
             # ✅ Cloudinary URL passed directly
-            "image_url": house.get("image_path"),
+            "image_url": house.get("image_url"),
             "agent_name": agent["username"] if agent else "Unknown",
             "created_at": house.get("created_at"),
         })
@@ -69,7 +69,7 @@ def get_house_details(house_id):
         "location": house["location"],
         "price": house["price"],
         # ✅ Cloudinary URL passed directly
-        "image_url": house.get("image_path"),
+        "image_url": house.get("image_url"),
         "agent": {
             "id": str(agent["_id"]) if agent else None,
             "name": agent["username"] if agent else "Unknown Agent",

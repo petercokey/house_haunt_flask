@@ -104,7 +104,7 @@ def get_all_houses():
             "description": h.get("description"),
             "location": h.get("location"),
             "price": h.get("price"),
-            "image_url": h.get("image_path"),
+            "image_url": h.get("image_url"),
             "status": h.get("status"),
             "agent": {
                 "id": str(agent["_id"]) if agent else None,
