@@ -21,8 +21,28 @@ def ping():
 @jwt_required()
 @role_required("haunter")
 def get_all_houses():
+    search = request.args.get("search")
+    min_price = request.args.get("min_price", type=float)
+    max_price = request.args.get("max_price", type=float)
+
+    query = {"status": "approved"}
+
+    if search:
+        query["$or"] = [
+            {"title": {"$regex": search, "$options": "i"}},
+            {"location": {"$regex": search, "$options": "i"}},
+        ]
+
+    if min_price is not None or max_price is not None:
+        query["price"] = {}
+
+        if min_price is not None:
+            query["price"]["$gte"] = min_price
+        if max_price is not None:
+            query["price"]["$lte"] = max_price
+
     houses = list(
-        mongo.db.houses.find({"status": "approved"}).sort("created_at", -1)
+        mongo.db.houses.find(query).sort("created_at", -1)
     )
 
     results = []
@@ -36,7 +56,6 @@ def get_all_houses():
             "price": house["price"],
             "location": house["location"],
             "description": house.get("description"),
-            # ✅ Cloudinary URL passed directly
             "image_url": house.get("image_url"),
             "agent_name": agent["username"] if agent else "Unknown",
             "created_at": house.get("created_at"),
