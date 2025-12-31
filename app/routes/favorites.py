@@ -35,6 +35,7 @@ def get_favorites():
                 "location": house["location"],
                 "price": house["price"],
                 "image_url": house.get("image_url"),
+                "images": house.get("images", [])
             })
 
     return jsonify({

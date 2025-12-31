@@ -7,6 +7,7 @@ from app.utils.auth_helpers import jwt_required, admin_required
 
 bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 
+
 # ============================================================
 # ADMIN DASHBOARD (Overview)
 # ============================================================
@@ -66,6 +67,7 @@ def get_pending_houses():
 
     for h in houses:
         agent = mongo.db.users.find_one({"_id": h.get("agent_id")})
+        images = h.get("images", [])
 
         results.append({
             "id": str(h["_id"]),
@@ -73,7 +75,11 @@ def get_pending_houses():
             "description": h.get("description"),
             "location": h.get("location"),
             "price": h.get("price"),
-            "image_url": h.get("image_path"),
+
+            # ✅ CONSISTENT
+            "images": images,
+            "preview_image": images[0] if images else None,
+
             "status": h.get("status"),
             "agent": {
                 "id": str(agent["_id"]) if agent else None,
@@ -97,6 +103,7 @@ def get_all_houses():
 
     for h in houses:
         agent = mongo.db.users.find_one({"_id": h.get("agent_id")})
+        images = h.get("images", [])
 
         results.append({
             "id": str(h["_id"]),
@@ -104,7 +111,11 @@ def get_all_houses():
             "description": h.get("description"),
             "location": h.get("location"),
             "price": h.get("price"),
-            "image_url": h.get("image_url"),
+
+            # ✅ SINGLE SOURCE OF TRUTH
+            "images": images,
+            "preview_image": images[0] if images else None,
+
             "status": h.get("status"),
             "agent": {
                 "id": str(agent["_id"]) if agent else None,
@@ -113,7 +124,10 @@ def get_all_houses():
             "created_at": h.get("created_at"),
         })
 
-    return jsonify({"total": len(results), "houses": results}), 200
+    return jsonify({
+        "total": len(results),
+        "houses": results
+    }), 200
 
 
 # ============================================================
@@ -145,6 +159,7 @@ def review_house(house_id):
         "message": f"House '{house.get('title')}' has been {decision}"
     }), 200
 
+
 # ============================================================
 # GET ALL HAUNTERS
 # ============================================================
@@ -167,6 +182,8 @@ def get_all_haunters():
         "total": len(results),
         "haunters": results
     }), 200
+
+
 # ============================================================
 # GET ALL AGENTS
 # ============================================================

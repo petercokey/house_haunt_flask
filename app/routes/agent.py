@@ -21,7 +21,7 @@ def ping():
 
 
 # ===============================
-# CREATE HOUSE
+# CREATE HOUSE (MULTIPLE IMAGES)
 # ===============================
 @bp.route("/create-house", methods=["POST"])
 @jwt_required()
@@ -38,20 +38,24 @@ def create_house():
     if not all([title, description, location, price]):
         return jsonify({"error": "All fields are required."}), 400
 
-    if "image" not in request.files:
-        return jsonify({"error": "House image is required."}), 400
+    if "images" not in request.files:
+        return jsonify({"error": "At least one image is required."}), 400
 
-    file = request.files["image"]
+    files = request.files.getlist("images")
 
-    if not file or file.filename == "":
-        return jsonify({"error": "No file selected."}), 400
+    if not files or len(files) == 0:
+        return jsonify({"error": "No images selected."}), 400
 
-    if not allowed_file(file.filename):
-        return jsonify({"error": "Invalid image type."}), 400
+    image_urls = []
 
-    # === Cloudinary upload ===
-    public_id = f"{user['_id']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
-    image_url = upload_house_image(file, public_id)
+    for file in files:
+        if file and allowed_file(file.filename):
+            public_id = f"{user['_id']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
+            url = upload_house_image(file, public_id)
+            image_urls.append(url)
+
+    if len(image_urls) == 0:
+        return jsonify({"error": "Invalid image types."}), 400
 
     data = {
         "agent_id": user["_id"],
@@ -59,7 +63,7 @@ def create_house():
         "description": description,
         "location": location,
         "price": float(price),
-        "image_url": image_url,   # ✅ Cloudinary URL
+        "images": image_urls,        # ✅ MULTIPLE IMAGES
         "created_at": datetime.utcnow(),
         "status": "pending",
     }
@@ -75,7 +79,6 @@ def create_house():
 # ===============================
 # MY HOUSES
 # ===============================
-#iting
 @bp.route("/my-houses", methods=["GET"])
 @jwt_required()
 @role_required("agent")
@@ -91,7 +94,7 @@ def my_houses():
 
 
 # ===============================
-# EDIT HOUSE
+# EDIT HOUSE (ADD MORE IMAGES)
 # ===============================
 @bp.route("/edit-house/<house_id>", methods=["PUT"])
 @jwt_required()
@@ -114,11 +117,18 @@ def edit_house(house_id):
         "price": float(request.form.get("price", house["price"])),
     }
 
-    if "image" in request.files:
-        file = request.files["image"]
-        if file and allowed_file(file.filename):
-            public_id = f"{g.user['_id']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
-            updates["image_url"] = upload_house_image(file, public_id)
+    # ✅ ADD NEW IMAGES (APPEND)
+    if "images" in request.files:
+        files = request.files.getlist("images")
+        new_images = []
+
+        for file in files:
+            if file and allowed_file(file.filename):
+                public_id = f"{g.user['_id']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
+                new_images.append(upload_house_image(file, public_id))
+
+        if new_images:
+            updates["images"] = house.get("images", []) + new_images
 
     mongo.db.houses.update_one({"_id": oid}, {"$set": updates})
 

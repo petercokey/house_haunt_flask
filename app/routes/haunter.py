@@ -15,7 +15,7 @@ def ping():
 
 
 # ============================================================
-# Get All Approved Houses
+# Get All Approved Houses (SEARCH + FILTER)
 # ============================================================
 @bp.route("/houses", methods=["GET"])
 @jwt_required()
@@ -35,7 +35,6 @@ def get_all_houses():
 
     if min_price is not None or max_price is not None:
         query["price"] = {}
-
         if min_price is not None:
             query["price"]["$gte"] = min_price
         if max_price is not None:
@@ -49,6 +48,7 @@ def get_all_houses():
 
     for house in houses:
         agent = mongo.db.users.find_one({"_id": house.get("agent_id")})
+        images = house.get("images", [])
 
         results.append({
             "id": str(house["_id"]),
@@ -56,7 +56,13 @@ def get_all_houses():
             "price": house["price"],
             "location": house["location"],
             "description": house.get("description"),
-            "image_url": house.get("image_url"),
+
+            # ✅ SINGLE SOURCE OF TRUTH
+            "images": images,
+
+            # ✅ OPTIONAL convenience field for card views
+            "preview_image": images[0] if images else None,
+
             "agent_name": agent["username"] if agent else "Unknown",
             "created_at": house.get("created_at"),
         })
@@ -81,14 +87,19 @@ def get_house_details(house_id):
 
     agent = mongo.db.users.find_one({"_id": house.get("agent_id")})
 
+    images = house.get("images", [])
+
     return jsonify({
         "id": str(house["_id"]),
         "title": house["title"],
         "description": house.get("description"),
         "location": house["location"],
         "price": house["price"],
-        # ✅ Cloudinary URL passed directly
-        "image_url": house.get("image_url"),
+
+        # ✅ CONSISTENT
+        "images": images,
+        "preview_image": images[0] if images else None,
+
         "agent": {
             "id": str(agent["_id"]) if agent else None,
             "name": agent["username"] if agent else "Unknown Agent",
@@ -119,6 +130,7 @@ def contact_agent(house_id):
         return jsonify({"error": "Insufficient credits"}), 402
 
     new_balance = wallet["balance"] - 2
+
     mongo.db.wallets.update_one(
         {"_id": wallet["_id"]},
         {"$set": {"balance": new_balance}},
@@ -152,4 +164,3 @@ def contact_agent(house_id):
         "message": f"Contact request sent for '{house['title']}'.",
         "remaining_balance": new_balance,
     }), 201
-#one
