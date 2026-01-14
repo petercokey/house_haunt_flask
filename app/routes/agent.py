@@ -151,3 +151,51 @@ def delete_house(house_id):
         return jsonify({"error": "House not found"}), 404
 
     return jsonify({"message": "House deleted"}), 200
+
+@bp.route("/contact-requests", methods=["GET"])
+@jwt_required()
+@role_required("agent")
+def get_contact_requests():
+    agent_id = g.user["_id"]
+
+    requests = list(
+        mongo.db.contact_requests.find({"agent_id": agent_id})
+        .sort("created_at", -1)
+    )
+
+    results = []
+
+    for req in requests:
+        haunter = mongo.db.users.find_one(
+            {"_id": req["haunter_id"], "role": "haunter"},
+            {"password": 0}  # never expose passwords
+        )
+
+        house = mongo.db.houses.find_one(
+            {"_id": req["house_id"]},
+            {"title": 1, "location": 1, "price": 1}
+        )
+
+        results.append({
+            "request_id": str(req["_id"]),
+            "created_at": req.get("created_at"),
+
+            "haunter": {
+                "id": str(haunter["_id"]) if haunter else None,
+                "username": haunter.get("username") if haunter else "Unknown",
+                "email": haunter.get("email") if haunter else None,
+            },
+
+            "house": {
+                "id": str(house["_id"]) if house else None,
+                "title": house.get("title") if house else None,
+                "location": house.get("location") if house else None,
+                "price": house.get("price") if house else None,
+            }
+        })
+
+    return jsonify({
+        "total_requests": len(results),
+        "requests": results
+    }), 200
+
