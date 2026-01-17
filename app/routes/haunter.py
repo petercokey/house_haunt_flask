@@ -145,11 +145,13 @@ def contact_agent(house_id):
     })
 
     mongo.db.contact_requests.insert_one({
-        "haunter_id": user_id,
-        "agent_id": house["agent_id"],
-        "house_id": house["_id"],
-        "created_at": datetime.utcnow(),
-    })
+    "haunter_id": user_id,
+    "agent_id": house["agent_id"],
+    "house_id": house["_id"],
+    "status": "pending",
+    "created_at": datetime.utcnow(),
+})
+
 
     create_notification(
         house["agent_id"],

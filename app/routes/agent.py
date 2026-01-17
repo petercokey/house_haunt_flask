@@ -199,3 +199,34 @@ def get_contact_requests():
         "requests": results
     }), 200
 
+
+@bp.route("/contact-requests/<request_id>/decision", methods=["POST"])
+@jwt_required()
+@role_required("agent")
+def decide_contact_request(request_id):
+    agent_id = g.user["_id"]
+    data = request.get_json() or {}
+    decision = data.get("decision")
+
+    if decision not in ("accepted", "rejected"):
+        return jsonify({"error": "Decision must be accepted or rejected"}), 400
+
+    contact_request = mongo.db.contact_requests.find_one({
+        "_id": ObjectId(request_id),
+        "agent_id": agent_id,
+    })
+
+    if not contact_request:
+        return jsonify({"error": "Contact request not found"}), 404
+
+    mongo.db.contact_requests.update_one(
+        {"_id": ObjectId(request_id)},
+        {"$set": {
+            "status": decision,
+            "responded_at": datetime.utcnow(),
+        }}
+    )
+
+    return jsonify({
+        "message": f"Contact request {decision}"
+    }), 200
