@@ -34,36 +34,48 @@ def ping():
 @bp.route("/upload", methods=["POST"])
 @jwt_required()
 @role_required("agent")
-def upload_kyc_file():
-    user_id = g.user["_id"]
-    if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+def upload_kyc():
+    agent_id = g.user["_id"]
 
-    file = request.files["file"]
-    if file.filename == "" or not allowed_file(file.filename):
-        return jsonify({"error": "Invalid file type"}), 400
+    full_name = request.form.get("full_name")
+    id_type = request.form.get("id_type")
+    files = request.files.getlist("id_documents")
+
+    if not full_name or not id_type:
+        return jsonify({"error": "full_name and id_type are required"}), 400
+
+    if not files or len(files) == 0:
+        return jsonify({"error": "ID document is required"}), 400
 
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    filename = secure_filename(f"{user_id}_{file.filename}")
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
-    file.save(file_path)
 
-    existing = mongo.db.kyc.find_one({"agent_id": user_id})
-    if existing:
-        mongo.db.kyc.update_one({"_id": existing["_id"]}, {"$set": {
-            "file_path": file_path,
+    saved_files = []
+
+    for file in files:
+        if file.filename == "" or not allowed_file(file.filename):
+            continue
+
+        filename = secure_filename(f"{agent_id}_{datetime.utcnow().timestamp()}_{file.filename}")
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(file_path)
+        saved_files.append(file_path)
+
+    if not saved_files:
+        return jsonify({"error": "No valid documents uploaded"}), 400
+
+    mongo.db.kyc.update_one(
+        {"agent_id": agent_id},
+        {"$set": {
+            "full_name": full_name,
+            "id_type": id_type,
+            "id_documents": saved_files,
             "status": "pending",
             "uploaded_at": datetime.utcnow()
-        }})
-    else:
-        mongo.db.kyc.insert_one({
-            "agent_id": user_id,
-            "file_path": file_path,
-            "status": "pending",
-            "uploaded_at": datetime.utcnow()
-        })
+        }},
+        upsert=True
+    )
 
-    return jsonify({"message": "KYC uploaded successfully!"}), 201
+    return jsonify({"message": "KYC submitted successfully"}), 201
 
 
 # KYC Status
