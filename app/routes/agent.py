@@ -219,6 +219,10 @@ def decide_contact_request(request_id):
     if not contact_request:
         return jsonify({"error": "Contact request not found"}), 404
 
+    # Prevent double decisions
+    if contact_request.get("status") in ("accepted", "rejected"):
+        return jsonify({"error": "Request already decided"}), 409
+
     mongo.db.contact_requests.update_one(
         {"_id": ObjectId(request_id)},
         {"$set": {
@@ -227,6 +231,114 @@ def decide_contact_request(request_id):
         }}
     )
 
+    # ✅ CREATE CHAT ON ACCEPT
+    if decision == "accepted":
+        existing_chat = mongo.db.chats.find_one({
+            "contact_request_id": ObjectId(request_id)
+        })
+
+        if not existing_chat:
+            mongo.db.chats.insert_one({
+                "contact_request_id": ObjectId(request_id),
+                "agent_id": agent_id,
+                "haunter_id": contact_request["haunter_id"],
+                "created_at": datetime.utcnow(),
+            })
+
     return jsonify({
         "message": f"Contact request {decision}"
+    }), 200
+
+
+@bp.route("/chats", methods=["GET"])
+@jwt_required()
+@role_required("agent")
+def get_agent_chats():
+    agent_id = g.user["_id"]
+
+    chats = list(
+        mongo.db.chats.find({"agent_id": agent_id})
+        .sort("created_at", -1)
+    )
+
+    results = []
+    for chat in chats:
+        haunter = mongo.db.users.find_one(
+            {"_id": chat["haunter_id"]},
+            {"username": 1, "email": 1}
+        )
+
+        results.append({
+            "chat_id": str(chat["_id"]),
+            "created_at": chat["created_at"],
+            "haunter": {
+                "id": str(haunter["_id"]) if haunter else None,
+                "username": haunter.get("username") if haunter else "Unknown",
+                "email": haunter.get("email") if haunter else None,
+            }
+        })
+
+    return jsonify({
+        "total": len(results),
+        "chats": results
+    }), 200
+
+@bp.route("/chats/<chat_id>/messages", methods=["POST"])
+@jwt_required()
+@role_required("agent")
+def send_chat_message(chat_id):
+    agent_id = g.user["_id"]
+    data = request.get_json() or {}
+    content = data.get("content")
+
+    if not content:
+        return jsonify({"error": "Message content required"}), 400
+
+    chat = mongo.db.chats.find_one({
+        "_id": ObjectId(chat_id),
+        "agent_id": agent_id,
+    })
+
+    if not chat:
+        return jsonify({"error": "Chat not found"}), 404
+
+    mongo.db.messages.insert_one({
+        "chat_id": ObjectId(chat_id),
+        "sender_id": agent_id,
+        "sender_role": "agent",
+        "content": content,
+        "created_at": datetime.utcnow(),
+    })
+
+    return jsonify({"message": "Message sent"}), 201
+@bp.route("/chats/<chat_id>/messages", methods=["GET"])
+@jwt_required()
+@role_required("agent")
+def get_chat_messages(chat_id):
+    agent_id = g.user["_id"]
+
+    chat = mongo.db.chats.find_one({
+        "_id": ObjectId(chat_id),
+        "agent_id": agent_id,
+    })
+
+    if not chat:
+        return jsonify({"error": "Chat not found"}), 404
+
+    messages = list(
+        mongo.db.messages
+        .find({"chat_id": ObjectId(chat_id)})
+        .sort("created_at", 1)
+    )
+
+    return jsonify({
+        "messages": [
+            {
+                "id": str(m["_id"]),
+                "sender_role": m["sender_role"],
+                "content": m["content"],
+                "created_at": m["created_at"]
+            }
+            for m in messages
+        ]
     }), 200
