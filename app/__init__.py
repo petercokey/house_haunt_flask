@@ -7,6 +7,8 @@ from flask_mail import Mail
 from werkzeug.security import generate_password_hash
 import os
 
+from app.extensions import socketio
+
 # === Extensions ===
 mongo = PyMongo()
 bcrypt = Bcrypt()
@@ -45,8 +47,12 @@ def create_app():
 
     bcrypt.init_app(app)
     mail.init_app(app)
+    socketio.init_app(app, cors_allowed_origins=[
+        "http://localhost:5173",
+        "https://house-haunt.netlify.app",
+    ])
 
-    # === CORS Configuration ===
+    # === CORS (THIS IS ALL YOU NEED) ===
     CORS(
         app,
         supports_credentials=True,
@@ -55,9 +61,7 @@ def create_app():
                 "origins": [
                     "http://localhost:5173",
                     "https://house-haunt.netlify.app",
-                ],
-                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                "allow_headers": ["Content-Type", "Authorization"],
+                ]
             }
         },
     )
@@ -78,9 +82,10 @@ def create_app():
         transactions,
         static_files,
         admin,
+        haunter_chat,
     )
 
-    blueprints = [
+    for bp in [
         auth.bp,
         contact.bp,
         wallet.bp,
@@ -95,22 +100,20 @@ def create_app():
         transactions.bp,
         static_files.bp,
         admin.bp,
-    ]
-
-    for bp in blueprints:
+        haunter_chat.bp,
+    ]:
         app.register_blueprint(bp)
 
-    # === Create default admin ===
     create_default_admin(mongo)
 
-    # === Health Check Routes ===
+    # === Health Checks ===
     @app.route("/api/ping")
     def ping():
         return jsonify({"message": "pong"}), 200
 
     @app.route("/")
     def home():
-        return jsonify({"status": "House Haunt backend is live and running!"}), 200
+        return jsonify({"status": "House Haunt backend is live!"}), 200
 
     @app.route("/uploads/<path:filename>")
     def serve_upload(filename):
@@ -126,13 +129,10 @@ def create_default_admin(mongo):
     if mongo.db.users.find_one({"email": admin_email}):
         return
 
-    admin = {
+    mongo.db.users.insert_one({
         "username": "admin",
         "email": admin_email,
         "password": generate_password_hash("SuperSecret123!"),
         "role": "admin",
         "created_at": datetime.utcnow(),
-    }
-
-    mongo.db.users.insert_one(admin)
-    print("✅ Default admin user created!")
+    })
