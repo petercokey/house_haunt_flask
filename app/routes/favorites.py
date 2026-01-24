@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, g
 from app.utils.decorators import role_required
 from app.utils.auth_helpers import jwt_required
-from app import mongo
+from app.extensions import mongo
 from bson import ObjectId
 
 bp = Blueprint("favorites", __name__, url_prefix="/api/favorites")

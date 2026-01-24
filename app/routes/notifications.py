@@ -2,7 +2,7 @@
 from flask import Blueprint, jsonify, g
 from datetime import datetime
 from bson import ObjectId
-from app import mongo
+from app.extensions import mongo
 from app.utils.auth_helpers import jwt_required
 
 bp = Blueprint("notifications", __name__, url_prefix="/api/notifications")

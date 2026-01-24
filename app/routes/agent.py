@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request, g
 from datetime import datetime
 from bson import ObjectId
-from app import mongo
+from app.extensions import mongo
 from app.utils.auth_helpers import jwt_required
 from app.utils.decorators import role_required
 from app.utils.image_uploader import upload_house_image

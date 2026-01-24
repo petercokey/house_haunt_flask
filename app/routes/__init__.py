@@ -14,6 +14,7 @@ from . import seed
 from . import transactions
 from . import static_files
 from . import admin
+from . import haunter_chat
 
 __all__ = [
     "auth",
@@ -30,5 +31,6 @@ __all__ = [
     "transactions",
     "static_files",
     "admin",
+    "haunter_chat",
 ]
 

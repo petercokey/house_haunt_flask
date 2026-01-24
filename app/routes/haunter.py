@@ -1,8 +1,8 @@
 from flask import Blueprint, jsonify, g, request
 from datetime import datetime
 from bson import ObjectId
-from app import mongo
-from app.utils.decorators import role_required
+from app.extensions import mongo
+from app.utils.decorators import role_required, jwt_required
 from app.utils.auth_helpers import jwt_required
 from app.utils.notify import create_notification
 

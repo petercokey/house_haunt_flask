@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, g
 from bson import ObjectId
-from app import mongo
+from app.extensions import mongo
 from app.utils.auth_helpers import jwt_required
 from app.utils.decorators import role_required, admin_required
 

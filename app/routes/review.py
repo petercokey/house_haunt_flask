@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request, g
 from app.utils.decorators import role_required
 from app.utils.notify import create_notification
 from app.utils.auth_helpers import jwt_required  # ✅ add this
-from app import mongo
+from app.extensions import mongo
 from bson import ObjectId
 from datetime import datetime
 

@@ -6,7 +6,7 @@ from app.utils.decorators import role_required, admin_required
 from app.utils.email_utils import send_email
 from app.utils.notify import create_notification
 from app.utils.auth_helpers import jwt_required
-from app import mongo
+from app.extensions import mongo
 from bson import ObjectId
 
 from app.models import (

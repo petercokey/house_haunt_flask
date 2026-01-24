@@ -1,17 +1,10 @@
 ﻿from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
-from flask_pymongo import PyMongo
 from datetime import timedelta, datetime
-from flask_bcrypt import Bcrypt
-from flask_mail import Mail
 from werkzeug.security import generate_password_hash
 import os
-from app.extensions import socketio
 
-# === Extensions ===
-mongo = PyMongo()
-bcrypt = Bcrypt()
-mail = Mail()
+from app.extensions import mongo, bcrypt, mail, socketio
 
 
 def create_app():
@@ -46,12 +39,15 @@ def create_app():
 
     bcrypt.init_app(app)
     mail.init_app(app)
-    socketio.init_app(app, cors_allowed_origins=[
-        "http://localhost:5173",
-        "https://house-haunt.netlify.app",
-    ])
+    socketio.init_app(
+        app,
+        cors_allowed_origins=[
+            "http://localhost:5173",
+            "https://house-haunt.netlify.app",
+        ],
+    )
 
-    # === CORS (THIS IS ALL YOU NEED) ===
+    # === CORS ===
     CORS(
         app,
         supports_credentials=True,
@@ -105,7 +101,6 @@ def create_app():
 
     create_default_admin(mongo)
 
-    # === Health Checks ===
     @app.route("/api/ping")
     def ping():
         return jsonify({"message": "pong"}), 200

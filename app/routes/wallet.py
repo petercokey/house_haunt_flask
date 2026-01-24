@@ -1,7 +1,7 @@
 # app/routes/wallet.py
 from flask import Blueprint, jsonify, request, g
 from datetime import datetime
-from app import mongo
+from app.extensions import mongo
 from app.utils.auth_helpers import jwt_required
 
 from app.models import (

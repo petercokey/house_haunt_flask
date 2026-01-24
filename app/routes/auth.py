@@ -4,7 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 from datetime import datetime, timedelta
 from bson import ObjectId
-from app import mongo
+from app.extensions import mongo
 from app.utils.auth_helpers import jwt_required
 import os
 
