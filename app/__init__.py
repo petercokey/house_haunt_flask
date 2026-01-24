@@ -6,7 +6,6 @@ from flask_bcrypt import Bcrypt
 from flask_mail import Mail
 from werkzeug.security import generate_password_hash
 import os
-
 from app.extensions import socketio
 
 # === Extensions ===

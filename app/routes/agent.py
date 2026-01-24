@@ -200,6 +200,7 @@ def get_contact_requests():
     }), 200
 
 
+
 @bp.route("/contact-requests/<request_id>/decision", methods=["POST"])
 @jwt_required()
 @role_required("agent")
