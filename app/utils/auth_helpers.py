@@ -10,6 +10,11 @@ def jwt_required():
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
+
+            # ✅ ALLOW PREFLIGHT
+            if request.method == "OPTIONS":
+                return "", 200
+
             token = request.cookies.get("access_token_cookie")
             if not token:
                 return jsonify({"error": "Missing authentication token"}), 401
@@ -18,9 +23,12 @@ def jwt_required():
                 payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
                 user_id = payload.get("user_id")
                 user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
+
                 if not user:
                     return jsonify({"error": "User not found"}), 404
+
                 g.user = user
+
             except jwt.ExpiredSignatureError:
                 return jsonify({"error": "Token expired"}), 401
             except jwt.InvalidTokenError:
