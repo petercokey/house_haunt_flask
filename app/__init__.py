@@ -1,9 +1,8 @@
-﻿from flask import Flask, jsonify, send_from_directory
+﻿from flask import Flask, jsonify, send_from_directory, request 
 from flask_cors import CORS
 from datetime import timedelta, datetime
 from werkzeug.security import generate_password_hash
 import os
-
 from app.extensions import mongo, bcrypt, mail, socketio
 
 
@@ -61,6 +60,11 @@ def create_app():
         },
     )
 
+    @app.before_request
+    def handle_preflight():
+        if request.method == "OPTIONS":
+            return "", 200
+
     # === Register Blueprints ===
     from app.routes import (
         auth,
@@ -113,6 +117,8 @@ def create_app():
     def serve_upload(filename):
         upload_folder = os.path.join(app.root_path, "uploads")
         return send_from_directory(upload_folder, filename)
+    
+
 
     return app
 

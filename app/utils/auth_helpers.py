@@ -6,14 +6,16 @@ from bson import ObjectId
 
 SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key")
 
+from flask import request
+
 def jwt_required():
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
 
-            # ✅ ALLOW PREFLIGHT
+            # ✅ Allow preflight requests through
             if request.method == "OPTIONS":
-                return "", 200
+                return ("", 204)
 
             token = request.cookies.get("access_token_cookie")
             if not token:
@@ -23,12 +25,10 @@ def jwt_required():
                 payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
                 user_id = payload.get("user_id")
                 user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
-
                 if not user:
                     return jsonify({"error": "User not found"}), 404
 
                 g.user = user
-
             except jwt.ExpiredSignatureError:
                 return jsonify({"error": "Token expired"}), 401
             except jwt.InvalidTokenError:

@@ -199,6 +199,9 @@ def get_contact_requests():
         "requests": results
     }), 200
 
+@bp.route("/agent/contact-requests/<request_id>/decision", methods=["OPTIONS"])
+def contact_decision_options(request_id):
+    return ("", 204)
 
 
 @bp.route("/contact-requests/<request_id>/decision", methods=["POST"])
