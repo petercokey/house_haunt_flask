@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify, request, g
 from datetime import datetime
 from bson import ObjectId
+from bson.errors import InvalidId
+
 from app.extensions import mongo
 from app.utils.auth_helpers import jwt_required, role_required
 from app.utils.image_uploader import upload_house_image
@@ -10,11 +12,24 @@ bp = Blueprint("agent", __name__, url_prefix="/api/agent")
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 
 
+# ===============================
+# HELPERS
+# ===============================
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-@bp.route("/ping")
+def parse_object_id(value, error_msg):
+    try:
+        return ObjectId(value)
+    except InvalidId:
+        return None
+
+
+# ===============================
+# PING
+# ===============================
+@bp.route("/ping", methods=["GET"])
 def ping():
     return jsonify({"message": "agent blueprint active!"}), 200
 
@@ -35,39 +50,34 @@ def create_house():
     price = form.get("price")
 
     if not all([title, description, location, price]):
-        return jsonify({"error": "All fields are required."}), 400
+        return jsonify({"error": "All fields are required"}), 400
 
     if "images" not in request.files:
-        return jsonify({"error": "At least one image is required."}), 400
+        return jsonify({"error": "At least one image is required"}), 400
 
     files = request.files.getlist("images")
-
-    if not files or len(files) == 0:
-        return jsonify({"error": "No images selected."}), 400
-
     image_urls = []
 
     for file in files:
         if file and allowed_file(file.filename):
             public_id = f"{user['_id']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
-            url = upload_house_image(file, public_id)
-            image_urls.append(url)
+            image_urls.append(upload_house_image(file, public_id))
 
-    if len(image_urls) == 0:
-        return jsonify({"error": "Invalid image types."}), 400
+    if not image_urls:
+        return jsonify({"error": "Invalid image types"}), 400
 
-    data = {
+    house = {
         "agent_id": user["_id"],
         "title": title,
         "description": description,
         "location": location,
         "price": float(price),
-        "images": image_urls,        # ✅ MULTIPLE IMAGES
+        "images": image_urls,
         "created_at": datetime.utcnow(),
         "status": "pending",
     }
 
-    result = mongo.db.houses.insert_one(data)
+    result = mongo.db.houses.insert_one(house)
 
     return jsonify({
         "message": "House created successfully",
@@ -82,24 +92,28 @@ def create_house():
 @jwt_required()
 @role_required("agent")
 def my_houses():
-    houses = list(mongo.db.houses.find({"agent_id": g.user["_id"]}))
+    houses = mongo.db.houses.find({"agent_id": g.user["_id"]})
 
+    results = []
     for h in houses:
         h["id"] = str(h["_id"])
         h["agent_id"] = str(h["agent_id"])
         h.pop("_id", None)
+        results.append(h)
 
-    return jsonify({"houses": houses}), 200
+    return jsonify({"houses": results}), 200
 
 
 # ===============================
-# EDIT HOUSE (ADD MORE IMAGES)
+# EDIT HOUSE
 # ===============================
 @bp.route("/edit-house/<house_id>", methods=["PUT"])
 @jwt_required()
 @role_required("agent")
 def edit_house(house_id):
-    oid = ObjectId(house_id)
+    oid = parse_object_id(house_id, "Invalid house id")
+    if not oid:
+        return jsonify({"error": "Invalid house id"}), 400
 
     house = mongo.db.houses.find_one({
         "_id": oid,
@@ -116,12 +130,9 @@ def edit_house(house_id):
         "price": float(request.form.get("price", house["price"])),
     }
 
-    # ✅ ADD NEW IMAGES (APPEND)
     if "images" in request.files:
-        files = request.files.getlist("images")
         new_images = []
-
-        for file in files:
+        for file in request.files.getlist("images"):
             if file and allowed_file(file.filename):
                 public_id = f"{g.user['_id']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
                 new_images.append(upload_house_image(file, public_id))
@@ -141,8 +152,12 @@ def edit_house(house_id):
 @jwt_required()
 @role_required("agent")
 def delete_house(house_id):
+    oid = parse_object_id(house_id, "Invalid house id")
+    if not oid:
+        return jsonify({"error": "Invalid house id"}), 400
+
     result = mongo.db.houses.delete_one({
-        "_id": ObjectId(house_id),
+        "_id": oid,
         "agent_id": g.user["_id"],
     })
 
@@ -151,23 +166,26 @@ def delete_house(house_id):
 
     return jsonify({"message": "House deleted"}), 200
 
+
+# ===============================
+# GET CONTACT REQUESTS
+# ===============================
 @bp.route("/contact-requests", methods=["GET"])
 @jwt_required()
 @role_required("agent")
 def get_contact_requests():
     agent_id = g.user["_id"]
 
-    requests = list(
-        mongo.db.contact_requests.find({"agent_id": agent_id})
-        .sort("created_at", -1)
-    )
+    requests = mongo.db.contact_requests.find(
+        {"agent_id": agent_id}
+    ).sort("created_at", -1)
 
     results = []
 
     for req in requests:
         haunter = mongo.db.users.find_one(
-            {"_id": req["haunter_id"], "role": "haunter"},
-            {"password": 0}  # never expose passwords
+            {"_id": req["haunter_id"]},
+            {"password": 0}
         )
 
         house = mongo.db.houses.find_one(
@@ -177,14 +195,13 @@ def get_contact_requests():
 
         results.append({
             "request_id": str(req["_id"]),
+            "status": req.get("status"),
             "created_at": req.get("created_at"),
-
             "haunter": {
                 "id": str(haunter["_id"]) if haunter else None,
-                "username": haunter.get("username") if haunter else "Unknown",
+                "username": haunter.get("username") if haunter else None,
                 "email": haunter.get("email") if haunter else None,
             },
-
             "house": {
                 "id": str(house["_id"]) if house else None,
                 "title": house.get("title") if house else None,
@@ -198,71 +215,65 @@ def get_contact_requests():
         "requests": results
     }), 200
 
-@bp.route("/agent/contact-requests/<request_id>/decision", methods=["OPTIONS"])
-def contact_decision_options(request_id):
-    return ("", 204)
 
-
+# ===============================
+# DECIDE CONTACT REQUEST
+# ===============================
 @bp.route("/contact-requests/<request_id>/decision", methods=["POST"])
 @jwt_required()
 @role_required("agent")
 def decide_contact_request(request_id):
-    agent_id = g.user["_id"]
-    data = request.get_json() or {}
+    oid = parse_object_id(request_id, "Invalid request id")
+    if not oid:
+        return jsonify({"error": "Invalid contact request id"}), 400
+
+    data = request.get_json(silent=True) or {}
     decision = data.get("decision")
 
     if decision not in ("accepted", "rejected"):
         return jsonify({"error": "Decision must be accepted or rejected"}), 400
 
     contact_request = mongo.db.contact_requests.find_one({
-        "_id": ObjectId(request_id),
-        "agent_id": agent_id,
+        "_id": oid,
+        "agent_id": g.user["_id"],
     })
 
     if not contact_request:
         return jsonify({"error": "Contact request not found"}), 404
 
-    # Prevent double decisions
     if contact_request.get("status") in ("accepted", "rejected"):
         return jsonify({"error": "Request already decided"}), 409
 
     mongo.db.contact_requests.update_one(
-        {"_id": ObjectId(request_id)},
+        {"_id": oid},
         {"$set": {
             "status": decision,
             "responded_at": datetime.utcnow(),
         }}
     )
 
-    # ✅ CREATE CHAT ON ACCEPT
     if decision == "accepted":
-        existing_chat = mongo.db.chats.find_one({
-            "contact_request_id": ObjectId(request_id)
-        })
-
-        if not existing_chat:
+        if not mongo.db.chats.find_one({"contact_request_id": oid}):
             mongo.db.chats.insert_one({
-                "contact_request_id": ObjectId(request_id),
-                "agent_id": agent_id,
+                "contact_request_id": oid,
+                "agent_id": g.user["_id"],
                 "haunter_id": contact_request["haunter_id"],
                 "created_at": datetime.utcnow(),
             })
 
-    return jsonify({
-        "message": f"Contact request {decision}"
-    }), 200
+    return jsonify({"message": f"Contact request {decision}"}), 200
 
 
+# ===============================
+# AGENT CHATS
+# ===============================
 @bp.route("/chats", methods=["GET"])
 @jwt_required()
 @role_required("agent")
 def get_agent_chats():
-    agent_id = g.user["_id"]
-
-    chats = list(
-        mongo.db.chats.find({"agent_id": agent_id})
-        .sort("created_at", -1)
-    )
+    chats = mongo.db.chats.find(
+        {"agent_id": g.user["_id"]}
+    ).sort("created_at", -1)
 
     results = []
     for chat in chats:
@@ -276,63 +287,53 @@ def get_agent_chats():
             "created_at": chat["created_at"],
             "haunter": {
                 "id": str(haunter["_id"]) if haunter else None,
-                "username": haunter.get("username") if haunter else "Unknown",
+                "username": haunter.get("username") if haunter else None,
                 "email": haunter.get("email") if haunter else None,
             }
         })
 
-    return jsonify({
-        "total": len(results),
-        "chats": results
-    }), 200
+    return jsonify({"total": len(results), "chats": results}), 200
 
-@bp.route("/chats/<chat_id>/messages", methods=["POST"])
+
+# ===============================
+# CHAT MESSAGES
+# ===============================
+@bp.route("/chats/<chat_id>/messages", methods=["GET", "POST"])
 @jwt_required()
 @role_required("agent")
-def send_chat_message(chat_id):
-    agent_id = g.user["_id"]
-    data = request.get_json() or {}
-    content = data.get("content")
-
-    if not content:
-        return jsonify({"error": "Message content required"}), 400
+def chat_messages(chat_id):
+    chat_oid = parse_object_id(chat_id, "Invalid chat id")
+    if not chat_oid:
+        return jsonify({"error": "Invalid chat id"}), 400
 
     chat = mongo.db.chats.find_one({
-        "_id": ObjectId(chat_id),
-        "agent_id": agent_id,
+        "_id": chat_oid,
+        "agent_id": g.user["_id"],
     })
 
     if not chat:
         return jsonify({"error": "Chat not found"}), 404
 
-    mongo.db.messages.insert_one({
-        "chat_id": ObjectId(chat_id),
-        "sender_id": agent_id,
-        "sender_role": "agent",
-        "content": content,
-        "created_at": datetime.utcnow(),
-    })
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        content = data.get("content")
 
-    return jsonify({"message": "Message sent"}), 201
-@bp.route("/chats/<chat_id>/messages", methods=["GET"])
-@jwt_required()
-@role_required("agent")
-def get_chat_messages(chat_id):
-    agent_id = g.user["_id"]
+        if not content:
+            return jsonify({"error": "Message content required"}), 400
 
-    chat = mongo.db.chats.find_one({
-        "_id": ObjectId(chat_id),
-        "agent_id": agent_id,
-    })
+        mongo.db.messages.insert_one({
+            "chat_id": chat_oid,
+            "sender_id": g.user["_id"],
+            "sender_role": "agent",
+            "content": content,
+            "created_at": datetime.utcnow(),
+        })
 
-    if not chat:
-        return jsonify({"error": "Chat not found"}), 404
+        return jsonify({"message": "Message sent"}), 201
 
-    messages = list(
-        mongo.db.messages
-        .find({"chat_id": ObjectId(chat_id)})
-        .sort("created_at", 1)
-    )
+    messages = mongo.db.messages.find(
+        {"chat_id": chat_oid}
+    ).sort("created_at", 1)
 
     return jsonify({
         "messages": [

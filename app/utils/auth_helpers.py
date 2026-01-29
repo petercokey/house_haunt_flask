@@ -19,34 +19,30 @@ def jwt_required():
             if not auth_header or not auth_header.startswith("Bearer "):
                 return jsonify({"error": "Missing or invalid token"}), 401
 
-            token = auth_header.split(" ")[1]
+            token = auth_header.split(" ", 1)[1]
 
             try:
-                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-
-                user_id = payload.get("user_id")
-                if not user_id:
-                    return jsonify({"error": "Invalid token payload"}), 401
-
-                user = mongo.db.users.find_one(
-                    {"_id": ObjectId(user_id)},
-                    {"password": 0}
+                payload = jwt.decode(
+                    token,
+                    SECRET_KEY,
+                    algorithms=["HS256"]
                 )
-
-                if not user:
-                    return jsonify({"error": "User not found"}), 401
-
-                g.user = user
-
             except jwt.ExpiredSignatureError:
                 return jsonify({"error": "Token expired"}), 401
             except jwt.InvalidTokenError:
                 return jsonify({"error": "Invalid token"}), 401
 
+            user = mongo.db.users.find_one({
+                "_id": ObjectId(payload["user_id"])
+            })
+
+            if not user:
+                return jsonify({"error": "User not found"}), 401
+
+            g.user = user
             return fn(*args, **kwargs)
         return wrapper
     return decorator
-
 
 def role_required(role_name):
     def decorator(fn):
