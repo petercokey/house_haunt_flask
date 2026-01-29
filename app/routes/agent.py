@@ -2,8 +2,7 @@ from flask import Blueprint, jsonify, request, g
 from datetime import datetime
 from bson import ObjectId
 from app.extensions import mongo
-from app.utils.auth_helpers import jwt_required
-from app.utils.decorators import role_required
+from app.utils.auth_helpers import jwt_required, role_required
 from app.utils.image_uploader import upload_house_image
 
 bp = Blueprint("agent", __name__, url_prefix="/api/agent")

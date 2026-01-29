@@ -2,8 +2,7 @@ from flask import Blueprint, jsonify, request, g
 from bson import ObjectId
 from datetime import datetime
 from app.extensions import mongo
-from app.utils.auth_helpers import jwt_required
-from app.utils.decorators import role_required
+from app.utils.auth_helpers import jwt_required, role_required
 from app.utils.notify import create_notification
 
 bp = Blueprint("contact", __name__, url_prefix="/api/contact")

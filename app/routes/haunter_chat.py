@@ -2,8 +2,7 @@ from flask import Blueprint, jsonify, request, g
 from bson import ObjectId
 from datetime import datetime
 from app import mongo
-from app.utils.auth_helpers import jwt_required
-from app.utils.decorators import role_required
+from app.utils.auth_helpers import jwt_required, role_required
 
 bp = Blueprint("haunter_chat", __name__, url_prefix="/api/haunter/chat")
 

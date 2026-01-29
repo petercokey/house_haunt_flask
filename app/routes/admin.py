@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request
 from bson import ObjectId
 from datetime import datetime
 from app.extensions import mongo
-from app.utils.decorators import jwt_required, admin_required
+from app.utils.auth_helpers import jwt_required, admin_required
 
 bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 

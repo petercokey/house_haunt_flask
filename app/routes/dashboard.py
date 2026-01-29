@@ -1,8 +1,7 @@
 from flask import Blueprint, jsonify, g
 from bson import ObjectId
 from app.extensions import mongo
-from app.utils.auth_helpers import jwt_required
-from app.utils.decorators import role_required, admin_required
+from app.utils.auth_helpers import jwt_required, role_required, admin_required
 
 bp = Blueprint("dashboard", __name__, url_prefix="/api/dashboard")
 
