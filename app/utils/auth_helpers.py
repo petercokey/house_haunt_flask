@@ -1,13 +1,17 @@
-# app/utils/auth_helpers.py
 from functools import wraps
 from flask import request, jsonify, g
 import jwt
 import os
 from app.extensions import mongo
 from bson import ObjectId
+from bson.errors import InvalidId
 
-SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key")
+# Must match Render environment variable
+SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
+
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY environment variable not set")
 
 
 def jwt_required():
@@ -19,30 +23,39 @@ def jwt_required():
             if not auth_header or not auth_header.startswith("Bearer "):
                 return jsonify({"error": "Missing or invalid token"}), 401
 
-            token = auth_header.split(" ", 1)[1]
+            token = auth_header.split(" ", 1)[1].strip()
 
             try:
                 payload = jwt.decode(
                     token,
                     SECRET_KEY,
-                    algorithms=["HS256"]
+                    algorithms=[ALGORITHM]
                 )
             except jwt.ExpiredSignatureError:
                 return jsonify({"error": "Token expired"}), 401
             except jwt.InvalidTokenError:
                 return jsonify({"error": "Invalid token"}), 401
 
-            user = mongo.db.users.find_one({
-                "_id": ObjectId(payload["user_id"])
-            })
+            user_id = payload.get("user_id")
+            if not user_id:
+                return jsonify({"error": "Invalid token payload"}), 401
+
+            try:
+                user_obj_id = ObjectId(user_id)
+            except InvalidId:
+                return jsonify({"error": "Invalid token payload"}), 401
+
+            user = mongo.db.users.find_one({"_id": user_obj_id})
 
             if not user:
                 return jsonify({"error": "User not found"}), 401
 
             g.user = user
             return fn(*args, **kwargs)
+
         return wrapper
     return decorator
+
 
 def role_required(role_name):
     def decorator(fn):
@@ -59,6 +72,7 @@ def role_required(role_name):
                 }), 403
 
             return fn(*args, **kwargs)
+
         return wrapper
     return decorator
 
@@ -72,4 +86,6 @@ def admin_required(fn):
             return jsonify({"error": "Admin access required"}), 403
 
         return fn(*args, **kwargs)
+
     return wrapper
+
