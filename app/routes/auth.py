@@ -100,3 +100,19 @@ def get_current_user():
         "email": user.get("email"),
         "role": user.get("role"),
     }), 200
+
+
+
+# ==========================================================
+# 🔹 Logout (JWT – Stateless)
+# ==========================================================
+@bp.route("/logout", methods=["POST"])
+def logout():
+    """
+    JWT logout is stateless.
+    Frontend must delete the token.
+    This endpoint exists for API completeness.
+    """
+    return jsonify({
+        "message": "Logged out successfully. Please delete token on client."
+    }), 200
