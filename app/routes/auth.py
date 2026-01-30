@@ -1,16 +1,18 @@
-﻿# app/routes/auth.py
-from flask import Blueprint, request, jsonify, make_response, current_app, g
+﻿from flask import Blueprint, request, jsonify, g
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 from datetime import datetime, timedelta
-from bson import ObjectId
 from app.extensions import mongo
 from app.utils.auth_helpers import jwt_required
 import os
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
-SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key")
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = "HS256"
+
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY environment variable not set")
 
 
 # ==========================================================
@@ -19,6 +21,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key")
 @bp.route("/register", methods=["POST"])
 def register():
     data = request.get_json()
+
     if not data or not data.get("email") or not data.get("password"):
         return jsonify({"error": "Missing required fields"}), 400
 
@@ -40,7 +43,11 @@ def register():
 
     return jsonify({
         "message": "User registered successfully",
-        "user": {"id": str(user["_id"]), "email": user["email"], "role": user["role"]}
+        "user": {
+            "id": str(user["_id"]),
+            "email": user["email"],
+            "role": user["role"]
+        }
     }), 201
 
 
@@ -55,10 +62,7 @@ def login():
         return jsonify({"error": "Missing credentials"}), 400
 
     user = mongo.db.users.find_one({"email": data["email"]})
-    if not user:
-        return jsonify({"error": "Invalid email or password"}), 401
-
-    if not check_password_hash(user["password"], data["password"]):
+    if not user or not check_password_hash(user["password"], data["password"]):
         return jsonify({"error": "Invalid email or password"}), 401
 
     token = jwt.encode(
@@ -67,7 +71,7 @@ def login():
             "exp": datetime.utcnow() + timedelta(hours=24),
         },
         SECRET_KEY,
-        algorithm="HS256",
+        algorithm=ALGORITHM,
     )
 
     return jsonify({

@@ -228,3 +228,41 @@ def get_users_by_role(role):
         "total": len(users),
         "users": [serialize_user(u) for u in users]
     }), 200
+
+    # ============================================================
+# GET PENDING HOUSES
+# ============================================================
+
+@bp.route("/pending-houses", methods=["GET"])
+@jwt_required()
+@admin_required
+def get_pending_houses():
+    houses = list(mongo.db.houses.find({"status": "pending"}))
+
+    agents = {
+        a["_id"]: a
+        for a in mongo.db.users.find({"role": "agent"})
+    }
+
+    results = []
+    for h in houses:
+        agent = agents.get(h.get("agent_id"))
+        images = h.get("images", [])
+
+        results.append({
+            "id": str(h["_id"]),
+            "title": h.get("title"),
+            "description": h.get("description"),
+            "location": h.get("location"),
+            "price": h.get("price"),
+            "images": images,
+            "preview_image": images[0] if images else None,
+            "status": h.get("status"),
+            "agent": serialize_user(agent),
+            "created_at": h.get("created_at"),
+        })
+
+    return jsonify({
+        "total": len(results),
+        "houses": results
+    }), 200
