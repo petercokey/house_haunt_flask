@@ -2,9 +2,11 @@
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 from datetime import datetime, timedelta
-from app.extensions import mongo
+from app.extensions import mongo, mail
 from app.utils.auth_helpers import jwt_required
 import os
+from flask_mail import Message
+import secrets
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -123,13 +125,81 @@ def logout():
 @bp.route("/forgot-password", methods=["POST"])
 def forgot_password():
     data = request.get_json()
+    email = data.get("email")
 
-    if not data or not data.get("email"):
+    if not email:
         return jsonify({"error": "Email is required"}), 400
 
-    user = mongo.db.users.find_one({"email": data["email"]})
+    user = mongo.db.users.find_one({"email": email})
 
-    # hide if user exists
+    # Always return success (anti-user-enumeration)
+    if not user:
+        return jsonify({
+            "message": "If the email exists, a reset link has been sent."
+        }), 200
+
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(minutes=30)
+
+    mongo.db.password_resets.insert_one({
+        "user_id": user["_id"],
+        "token": token,
+        "expires_at": expires_at,
+        "used": False
+    })
+
+    reset_link = f"{os.getenv('FRONTEND_URL')}/reset-password/{token}"
+
+    msg = Message(
+        subject="Reset your HouseHaunt password",
+        recipients=[email],
+        body=f"""
+Hello {user.get('username')},
+
+Click the link below to reset your password:
+{reset_link}
+
+This link expires in 30 minutes.
+
+If you did not request this, ignore this email.
+"""
+    )
+
+    mail.send(msg)
+
     return jsonify({
         "message": "If the email exists, a reset link has been sent."
+    }), 200
+
+@bp.route("/reset-password/<token>", methods=["POST"])
+def reset_password(token):
+    data = request.get_json()
+    new_password = data.get("password")
+
+    if not new_password or len(new_password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+
+    record = mongo.db.password_resets.find_one({
+        "token": token,
+        "used": False,
+        "expires_at": {"$gt": datetime.utcnow()}
+    })
+
+    if not record:
+        return jsonify({"error": "Invalid or expired token"}), 400
+
+    hashed_password = generate_password_hash(new_password)
+
+    mongo.db.users.update_one(
+        {"_id": record["user_id"]},
+        {"$set": {"password": hashed_password}}
+    )
+
+    mongo.db.password_resets.update_one(
+        {"_id": record["_id"]},
+        {"$set": {"used": True}}
+    )
+
+    return jsonify({
+        "message": "Password reset successful. Please login."
     }), 200
