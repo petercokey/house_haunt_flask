@@ -65,6 +65,9 @@ def login():
     if not user or not check_password_hash(user["password"], data["password"]):
         return jsonify({"error": "Invalid email or password"}), 401
 
+    
+
+
     token = jwt.encode(
         {
             "user_id": str(user["_id"]),
@@ -115,4 +118,18 @@ def logout():
     """
     return jsonify({
         "message": "Logged out successfully. Please delete token on client."
+    }), 200
+
+@bp.route("/forgot-password", methods=["POST"])
+def forgot_password():
+    data = request.get_json()
+
+    if not data or not data.get("email"):
+        return jsonify({"error": "Email is required"}), 400
+
+    user = mongo.db.users.find_one({"email": data["email"]})
+
+    # hide if user exists
+    return jsonify({
+        "message": "If the email exists, a reset link has been sent."
     }), 200
