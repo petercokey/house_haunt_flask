@@ -56,3 +56,22 @@ def role_required(role_name):
             return fn(*args, **kwargs)
         return wrapper
     return decorator
+
+    from functools import wraps
+from flask import jsonify, g
+
+
+def admin_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        user = getattr(g, "user", None)
+
+        if not user:
+            return jsonify({"error": "Authentication required"}), 401
+
+        if user.get("role") != "admin":
+            return jsonify({"error": "Admin access required"}), 403
+
+        return fn(*args, **kwargs)
+
+    return wrapper
