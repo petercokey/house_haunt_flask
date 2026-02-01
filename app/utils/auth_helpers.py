@@ -41,3 +41,18 @@ def jwt_required():
 
         return wrapper
     return decorator
+
+def role_required(role_name):
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            user = g.get("user")
+            if not user:
+                return jsonify({"error": "Unauthorized"}), 401
+
+            if user.get("role") != role_name:
+                return jsonify({"error": f"Access denied. Requires '{role_name}' role."}), 403
+
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
