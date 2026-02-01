@@ -82,6 +82,7 @@ def create_app():
         static_files,
         admin,
         haunter_chat,
+        chat,
     )
 
     for bp in [
@@ -100,6 +101,7 @@ def create_app():
         static_files.bp,
         admin.bp,
         haunter_chat.bp,
+        chat.bp,
     ]:
         app.register_blueprint(bp)
 
