@@ -1,13 +1,15 @@
 from flask import Blueprint, jsonify, request, g
 from datetime import datetime
 from bson import ObjectId
-from bson.errors import InvalidId
+import bson.errors
 
 from app.extensions import mongo
 from app.utils.auth_helpers import jwt_required
 
+# ===============================
+# BLUEPRINT
+# ===============================
 bp = Blueprint("chat", __name__, url_prefix="/api/chats")
-
 
 # ===============================
 # HELPERS
@@ -15,7 +17,7 @@ bp = Blueprint("chat", __name__, url_prefix="/api/chats")
 def parse_object_id(value):
     try:
         return ObjectId(value)
-    except (InvalidId, TypeError):
+    except (bson.errors.InvalidId, TypeError):
         return None
 
 
@@ -24,7 +26,6 @@ def is_chat_participant(chat, user):
         chat.get("agent_id") == user["_id"] or
         chat.get("haunter_id") == user["_id"]
     )
-
 
 # ===============================
 # GET USER CHATS (AGENT + HAUNTER)
@@ -127,3 +128,4 @@ def chat_messages(chat_id):
             for m in messages
         ]
     }), 200
+

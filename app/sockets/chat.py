@@ -3,7 +3,6 @@ from flask_socketio import join_room, emit
 from bson import ObjectId
 from datetime import datetime
 import jwt
-
 from app.extensions import socketio, mongo
 
 
