@@ -104,6 +104,7 @@ def create_app():
         static_files,
         admin,
         haunter_chat,
+        chat,
     )
 
     blueprints = [
@@ -122,15 +123,13 @@ def create_app():
         static_files.bp,
         admin.bp,
         haunter_chat.bp,
+        chat.bp,
     ]
 
     for bp in blueprints:
         app.register_blueprint(bp)
 
-    # ===============================
-    # IMPORT SOCKET EVENTS (NO BLUEPRINT)
-    # ===============================
-    from app.routes import chat  # noqa: F401
+    
 
     # ===============================
     # DEFAULT ADMIN
