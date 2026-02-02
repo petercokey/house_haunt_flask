@@ -3,13 +3,14 @@ from datetime import datetime
 from bson import ObjectId
 import bson.errors
 
-from app.extensions import mongo
+from app.extensions import socketio, mongo
 from app.utils.auth_helpers import jwt_required
 
 # ===============================
-# BLUEPRINT
+# BLUEPRINT (THIS WAS MISSING)
 # ===============================
-bp = Blueprint("chat", __name__, url_prefix="/api/chats")
+bp = Blueprint("chat", __name__, url_prefix="/api/chat")
+
 
 # ===============================
 # HELPERS
@@ -26,6 +27,7 @@ def is_chat_participant(chat, user):
         chat.get("agent_id") == user["_id"] or
         chat.get("haunter_id") == user["_id"]
     )
+
 
 # ===============================
 # GET USER CHATS (AGENT + HAUNTER)
@@ -89,9 +91,6 @@ def chat_messages(chat_id):
     if not is_chat_participant(chat, g.user):
         return jsonify({"error": "Not authorized for this chat"}), 403
 
-    # -----------------------
-    # SEND MESSAGE
-    # -----------------------
     if request.method == "POST":
         data = request.get_json(silent=True) or {}
         content = data.get("content")
@@ -109,9 +108,6 @@ def chat_messages(chat_id):
 
         return jsonify({"message": "Message sent"}), 201
 
-    # -----------------------
-    # GET MESSAGES
-    # -----------------------
     messages = mongo.db.messages.find(
         {"chat_id": chat_oid}
     ).sort("created_at", 1)
@@ -128,4 +124,3 @@ def chat_messages(chat_id):
             for m in messages
         ]
     }), 200
-

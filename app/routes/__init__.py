@@ -1,6 +1,4 @@
-﻿# app/routes/__init__.py
-
-from . import auth
+﻿from . import auth
 from . import contact
 from . import wallet
 from . import review
@@ -15,6 +13,8 @@ from . import transactions
 from . import static_files
 from . import admin
 from . import haunter_chat
+from . import chat  # ✅ NOW THIS WORKS
+
 
 __all__ = [
     "auth",
@@ -32,5 +32,6 @@ __all__ = [
     "static_files",
     "admin",
     "haunter_chat",
+    "chat",
 ]
 
