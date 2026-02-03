@@ -1,4 +1,4 @@
-﻿from flask import Blueprint, request, jsonify, g, requests
+﻿from flask import Blueprint, request, jsonify, g
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 from datetime import datetime, timedelta
