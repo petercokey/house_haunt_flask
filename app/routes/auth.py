@@ -124,7 +124,7 @@ def logout():
 
 @bp.route("/forgot-password", methods=["POST"])
 def forgot_password():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     email = data.get("email")
 
     if not email:
@@ -132,11 +132,17 @@ def forgot_password():
 
     user = mongo.db.users.find_one({"email": email})
 
-    # Always return success (anti-user-enumeration)
+    # Anti user-enumeration
     if not user:
         return jsonify({
             "message": "If the email exists, a reset link has been sent."
         }), 200
+
+    # Invalidate old tokens
+    mongo.db.password_resets.update_many(
+        {"user_id": user["_id"], "used": False},
+        {"$set": {"used": True}}
+    )
 
     token = secrets.token_urlsafe(32)
     expires_at = datetime.utcnow() + timedelta(minutes=30)
@@ -145,16 +151,21 @@ def forgot_password():
         "user_id": user["_id"],
         "token": token,
         "expires_at": expires_at,
-        "used": False
+        "used": False,
+        "created_at": datetime.utcnow(),
     })
 
-    reset_link = f"{os.getenv('FRONTEND_URL')}/reset-password/{token}"
+    frontend_url = os.getenv(
+        "FRONTEND_URL",
+        "https://house-haunt.netlify.app"
+    )
+
+    reset_link = f"{frontend_url}/reset-password/{token}"
 
     msg = Message(
         subject="Reset your HouseHaunt password",
         recipients=[email],
-        body=f"""
-Hello {user.get('username')},
+        body=f"""Hello {user.get('username')},
 
 Click the link below to reset your password:
 {reset_link}
@@ -173,11 +184,13 @@ If you did not request this, ignore this email.
 
 @bp.route("/reset-password/<token>", methods=["POST"])
 def reset_password(token):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     new_password = data.get("password")
 
     if not new_password or len(new_password) < 6:
-        return jsonify({"error": "Password must be at least 6 characters"}), 400
+        return jsonify({
+            "error": "Password must be at least 6 characters"
+        }), 400
 
     record = mongo.db.password_resets.find_one({
         "token": token,
@@ -192,7 +205,10 @@ def reset_password(token):
 
     mongo.db.users.update_one(
         {"_id": record["user_id"]},
-        {"$set": {"password": hashed_password}}
+        {"$set": {
+            "password": hashed_password,
+            "password_updated_at": datetime.utcnow()
+        }}
     )
 
     mongo.db.password_resets.update_one(
