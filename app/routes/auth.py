@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 import jwt
 import os
 import secrets
-import requests
 
 from app.extensions import mongo
 from app.utils.auth_helpers import jwt_required
