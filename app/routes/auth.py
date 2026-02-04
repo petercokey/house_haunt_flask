@@ -5,6 +5,7 @@ import jwt
 import os
 import secrets
 
+
 from app.extensions import mongo
 from app.utils.auth_helpers import jwt_required
 
