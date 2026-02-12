@@ -96,20 +96,25 @@ def get_kyc_status():
 
 
 # Admin: view all KYC
+# Admin: view all KYC
 @bp.route("/all", methods=["GET"])
 @jwt_required()
 @role_required("admin")
 def view_all_kyc():
     kycs = list(mongo.db.kyc.find().sort("uploaded_at", -1))
-    data = [{
-        "id": str(k["_id"]),
-        "agent_id": str(k["agent_id"]),
-        "status": k.get("status"),
-        "uploaded_at": k.get("uploaded_at"),
-        "reviewed_at": k.get("reviewed_at"),
-        "admin_note": k.get("admin_note"),
-        "file_path": k.get("file_path")
-    } for k in kycs]
+
+    data = []
+    for k in kycs:
+        data.append({
+            "id": str(k["_id"]),
+            "agent_id": str(k["agent_id"]),
+            "status": k.get("status"),
+            "uploaded_at": k.get("uploaded_at"),
+            "reviewed_at": k.get("reviewed_at"),
+            "admin_note": k.get("admin_note"),
+            "documents": k.get("id_documents", [])  # ✅ Correct field
+        })
+
     return jsonify({"kyc_records": data}), 200
 
 
@@ -158,8 +163,14 @@ def view_kyc_document(kyc_id):
     if record["agent_id"] != g.user["_id"] and g.user.get("role") != "admin":
         return jsonify({"error": "Unauthorized"}), 403
 
-    if not os.path.exists(record["file_path"]):
+    documents = record.get("id_documents", [])
+    if not documents:
+        return jsonify({"error": "No document found"}), 404
+
+    file_path = documents[0]   # serve first document
+
+    if not os.path.exists(file_path):
         return jsonify({"error": "File not found"}), 404
 
-    folder, filename = os.path.split(record["file_path"])
+    folder, filename = os.path.split(file_path)
     return send_from_directory(folder, filename)
