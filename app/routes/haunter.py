@@ -76,8 +76,13 @@ def get_all_houses():
 @jwt_required()
 @role_required("haunter")
 def get_house_details(house_id):
+    try:
+        house_obj = ObjectId(house_id)
+    except:
+        return jsonify({"error": "Invalid house id"}), 400
+
     house = mongo.db.houses.find_one({
-        "_id": ObjectId(house_id),
+        "_id": house_obj,
         "status": "approved",
     })
 
@@ -85,6 +90,18 @@ def get_house_details(house_id):
         return jsonify({"error": "House not found or not approved."}), 404
 
     agent = mongo.db.users.find_one({"_id": house.get("agent_id")})
+
+    # 🔥 NEW: Fetch agent reviews
+    reviews = list(mongo.db.reviews.find({
+        "agent_id": house.get("agent_id")
+    }))
+
+    review_count = len(reviews)
+
+    if review_count > 0:
+        avg_rating = sum(r["rating"] for r in reviews) / review_count
+    else:
+        avg_rating = 0
 
     images = house.get("images", [])
 
@@ -94,8 +111,6 @@ def get_house_details(house_id):
         "description": house.get("description"),
         "location": house["location"],
         "price": house["price"],
-
-        # ✅ CONSISTENT
         "images": images,
         "preview_image": images[0] if images else None,
 
@@ -103,7 +118,12 @@ def get_house_details(house_id):
             "id": str(agent["_id"]) if agent else None,
             "name": agent["username"] if agent else "Unknown Agent",
             "email": agent.get("email") if agent else None,
+
+            # 🔥 NEW FIELDS
+            "rating": round(avg_rating, 1),
+            "review_count": review_count
         },
+
         "created_at": house.get("created_at"),
     }), 200
 

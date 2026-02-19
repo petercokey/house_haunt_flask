@@ -19,59 +19,38 @@ def ping():
 
 
 # Haunter posts a review for an agent
-@bp.route("/add/<agent_id>", methods=["POST"])
+@bp.route("", methods=["POST"])
 @jwt_required()
 @role_required("haunter")
-def add_review(agent_id):
-    user_id = g.user["_id"]
-    agent = mongo.db.users.find_one({"_id": ObjectId(agent_id), "role": "agent"})
-    if not agent:
-        return jsonify({"error": "Invalid agent ID"}), 404
+def create_review():
+    data = request.get_json()
 
-    data = request.get_json() or {}
+    agent_id = data.get("agent_id")
     rating = data.get("rating")
-    comment = (data.get("comment") or "").strip()
+    comment = data.get("comment", "")
 
-    if not rating or not (1 <= rating <= 5):
-        return jsonify({"error": "Rating must be between 1 and 5"}), 400
+    if not agent_id or not rating:
+        return jsonify({"error": "agent_id and rating required"}), 400
 
-    existing = mongo.db.reviews.find_one({"haunter_id": user_id, "agent_id": ObjectId(agent_id)})
+    try:
+        agent_obj = ObjectId(agent_id)
+    except:
+        return jsonify({"error": "Invalid agent id"}), 400
+
+    existing = mongo.db.reviews.find_one({
+        "agent_id": agent_obj,
+        "reviewer_id": g.user["_id"]
+    })
+
     if existing:
-        return jsonify({"error": "You have already reviewed this agent."}), 400
+        return jsonify({"error": "You already reviewed this agent"}), 400
 
     mongo.db.reviews.insert_one({
-        "haunter_id": user_id,
-        "agent_id": ObjectId(agent_id),
+        "agent_id": agent_obj,
+        "reviewer_id": g.user["_id"],
         "rating": rating,
         "comment": comment,
         "created_at": datetime.utcnow()
     })
 
-    message = f"You received a new review from {g.user['username']}: {rating}⭐ - '{comment or 'No comment'}'"
-    create_notification(ObjectId(agent_id), message)
-
-    return jsonify({"message": "Review posted successfully"}), 201
-
-
-# Agent views all reviews they’ve received
-@bp.route("/my", methods=["GET"])
-@jwt_required()
-@role_required("agent")
-def my_reviews():
-    agent_id = g.user["_id"]
-    reviews = list(mongo.db.reviews.find({"agent_id": agent_id}).sort("created_at", -1))
-
-    result = []
-    for r in reviews:
-        haunter = mongo.db.users.find_one({"_id": r["haunter_id"]})
-        result.append({
-            "haunter_id": str(r["haunter_id"]),
-            "haunter_name": haunter["username"] if haunter else "Deleted User",
-            "rating": r["rating"],
-            "comment": r.get("comment", ""),
-            "created_at": r.get("created_at")
-        })
-
-    avg_rating = round(sum(r["rating"] for r in result) / len(result), 2) if result else 0
-
-    return jsonify({"total_reviews": len(result), "average_rating": avg_rating, "reviews": result}), 200
+    return jsonify({"message": "Review submitted"}), 201

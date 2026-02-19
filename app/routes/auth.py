@@ -127,106 +127,129 @@ def logout():
 
 @bp.route("/forgot-password", methods=["POST"])
 def forgot_password():
-    data = request.get_json(silent=True) or {}
-    email = data.get("email")
+    try:
+        data = request.get_json(silent=True) or {}
+        email = data.get("email")
 
-    if not email:
-        return jsonify({"error": "Email is required"}), 400
+        if not email:
+            return jsonify({"error": "Email is required"}), 400
 
-    user = mongo.db.users.find_one({"email": email})
+        user = mongo.db.users.find_one({"email": email})
 
-    # Anti user-enumeration
-    if not user:
+        # Always respond 200 to prevent user enumeration
+        if not user:
+            return jsonify({
+                "message": "If the email exists, a reset link has been sent."
+            }), 200
+
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(minutes=30)
+
+        mongo.db.password_resets.insert_one({
+            "user_id": user["_id"],
+            "token": token,
+            "expires_at": expires_at,
+            "used": False,
+            "created_at": datetime.utcnow(),
+        })
+
+        frontend_url = os.getenv("FRONTEND_URL")
+        resend_api_key = os.getenv("RESEND_API_KEY")
+        email_from = os.getenv("EMAIL_FROM")
+
+        if not all([frontend_url, resend_api_key, email_from]):
+            print("Missing Resend environment variables")
+            return jsonify({
+                "error": "Email service configuration error"
+            }), 500
+
+        reset_link = f"{frontend_url}/reset-password/{token}"
+
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {resend_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": email_from,
+                "to": [email],
+                "subject": "Reset your HouseHaunt password",
+                "html": f"""
+                    <p>Hello {user.get("username")},</p>
+
+                    <p>Click the link below to reset your password:</p>
+
+                    <p><a href="{reset_link}">Reset Password</a></p>
+
+                    <p>This link expires in 30 minutes.</p>
+
+                    <p>If you did not request this, ignore this email.</p>
+                """
+            },
+            timeout=10
+        )
+
+        if response.status_code >= 400:
+            print("Resend API error:", response.text)
+            return jsonify({
+                "error": "Failed to send reset email"
+            }), 500
+
         return jsonify({
             "message": "If the email exists, a reset link has been sent."
         }), 200
 
-    token = secrets.token_urlsafe(32)
-    expires_at = datetime.utcnow() + timedelta(minutes=30)
-
-    mongo.db.password_resets.insert_one({
-        "user_id": user["_id"],
-        "token": token,
-        "expires_at": expires_at,
-        "used": False,
-        "created_at": datetime.utcnow(),
-    })
-
-    frontend_url = os.getenv("FRONTEND_URL")
-    resend_api_key = os.getenv("RESEND_API_KEY")
-    email_from = os.getenv("EMAIL_FROM")
-
-    if not all([frontend_url, resend_api_key, email_from]):
-        raise RuntimeError("Missing Resend environment variables")
-
-    reset_link = f"{frontend_url}/reset-password/{token}"
-
-    response = requests.post(
-        "https://api.resend.com/emails",
-        headers={
-            "Authorization": f"Bearer {resend_api_key}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "from": email_from,
-            "to": [email],
-            "subject": "Reset your HouseHaunt password",
-            "html": f"""
-                <p>Hello {user.get("username")},</p>
-
-                <p>Click the link below to reset your password:</p>
-
-                <p><a href="{reset_link}">Reset Password</a></p>
-
-                <p>This link expires in 30 minutes.</p>
-
-                <p>If you did not request this, ignore this email.</p>
-            """
-        }
-    )
-
-    if response.status_code >= 400:
-        raise RuntimeError(f"Resend error: {response.text}")
-
-    return jsonify({
-        "message": "If the email exists, a reset link has been sent."
-    }), 200
+    except Exception as e:
+        print("FORGOT PASSWORD ERROR:", str(e))
+        return jsonify({
+            "error": "Internal server error"
+        }), 500
 
 
 @bp.route("/reset-password/<token>", methods=["POST"])
 def reset_password(token):
-    data = request.get_json(silent=True) or {}
-    new_password = data.get("password")
+    try:
+        data = request.get_json(silent=True) or {}
+        new_password = data.get("password")
 
-    if not new_password or len(new_password) < 6:
+        if not new_password or len(new_password) < 6:
+            return jsonify({
+                "error": "Password must be at least 6 characters"
+            }), 400
+
+        record = mongo.db.password_resets.find_one({
+            "token": token,
+            "used": False,
+            "expires_at": {"$gt": datetime.utcnow()}
+        })
+
+        if not record:
+            return jsonify({
+                "error": "Invalid or expired token"
+            }), 400
+
+        hashed_password = generate_password_hash(new_password)
+
+        mongo.db.users.update_one(
+            {"_id": record["user_id"]},
+            {"$set": {
+                "password": hashed_password,
+                "password_updated_at": datetime.utcnow()
+            }}
+        )
+
+        mongo.db.password_resets.update_one(
+            {"_id": record["_id"]},
+            {"$set": {"used": True}}
+        )
+
         return jsonify({
-            "error": "Password must be at least 6 characters"
-        }), 400
+            "message": "Password reset successful. Please login."
+        }), 200
 
-    record = mongo.db.password_resets.find_one({
-        "token": token,
-        "used": False,
-        "expires_at": {"$gt": datetime.utcnow()}
-    })
-
-    if not record:
-        return jsonify({"error": "Invalid or expired token"}), 400
-
-    hashed_password = generate_password_hash(new_password)
-
-    mongo.db.users.update_one(
-        {"_id": record["user_id"]},
-        {"$set": {
-            "password": hashed_password,
-            "password_updated_at": datetime.utcnow()
-        }}
-    )
-
-    mongo.db.password_resets.update_one(
-        {"_id": record["_id"]},
-        {"$set": {"used": True}}
-    )
-
-    return jsonify({
-        "message": "Password reset successful. Please login."
-    }), 200
+    except Exception as e:
+        print("RESET PASSWORD ERROR:", str(e))
+        return jsonify({
+            "error": "Internal server error"
+        }), 500
