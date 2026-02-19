@@ -6,7 +6,7 @@ from app.extensions import mongo, mail
 from app.utils.auth_helpers import jwt_required
 import os
 import secrets
-
+import requests
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
