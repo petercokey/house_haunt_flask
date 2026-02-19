@@ -17,3 +17,4 @@ PyJWT==2.8.0
 cloudinary>=1.39.0
 flask-socketio
 eventlet>=0.33.3
+requests==2.31.0
