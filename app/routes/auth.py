@@ -172,7 +172,7 @@ def forgot_password():
                 "Content-Type": "application/json",
             },
             json={
-                "from": email_from,
+                "from": "onboarding@resend.dev",
                 "to": [email],
                 "subject": "Reset your HouseHaunt password",
                 "html": f"""
