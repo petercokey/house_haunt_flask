@@ -32,6 +32,13 @@ def create_app():
     # INIT EXTENSIONS
     # ===============================
     mongo.init_app(app)
+    
+    with app.app_context():
+        mongo.db.messages.create_index("chat_id")
+        mongo.db.messages.create_index("sender_id")
+        mongo.db.messages.create_index("read_at")
+        mongo.db.messages.create_index("delivered_at")
+
     bcrypt.init_app(app)
     mail.init_app(app)
 

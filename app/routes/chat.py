@@ -3,18 +3,16 @@ from datetime import datetime
 from bson import ObjectId
 import bson.errors
 
-from app.extensions import socketio, mongo
+from app.extensions import mongo
 from app.utils.auth_helpers import jwt_required
 
-# ===============================
-# BLUEPRINT (THIS WAS MISSING)
-# ===============================
 bp = Blueprint("chat", __name__, url_prefix="/api/chat")
 
 
 # ===============================
 # HELPERS
 # ===============================
+
 def parse_object_id(value):
     try:
         return ObjectId(value)
@@ -29,9 +27,22 @@ def is_chat_participant(chat, user):
     )
 
 
+def serialize_message(m):
+    return {
+        "id": str(m["_id"]),
+        "sender_id": str(m["sender_id"]),
+        "sender_role": m["sender_role"],
+        "content": m["content"],
+        "created_at": m["created_at"].isoformat() if m.get("created_at") else None,
+        "delivered_at": m["delivered_at"].isoformat() if m.get("delivered_at") else None,
+        "read_at": m["read_at"].isoformat() if m.get("read_at") else None,
+    }
+
+
 # ===============================
-# GET USER CHATS (AGENT + HAUNTER)
+# GET USER CHATS (WITH UNREAD COUNT)
 # ===============================
+
 @bp.route("", methods=["GET"])
 @jwt_required()
 def get_user_chats():
@@ -47,9 +58,13 @@ def get_user_chats():
     chats = mongo.db.chats.find(query).sort("created_at", -1)
 
     results = []
+
     for chat in chats:
+        chat_id = chat["_id"]
+
         other_user_id = (
-            chat["haunter_id"] if role == "agent" else chat["agent_id"]
+            chat["haunter_id"] if role == "agent"
+            else chat["agent_id"]
         )
 
         other_user = mongo.db.users.find_one(
@@ -57,9 +72,17 @@ def get_user_chats():
             {"username": 1, "email": 1, "role": 1}
         )
 
+        # ✅ UNREAD COUNT
+        unread_count = mongo.db.messages.count_documents({
+            "chat_id": chat_id,
+            "sender_id": {"$ne": user["_id"]},
+            "read_at": None
+        })
+
         results.append({
-            "chat_id": str(chat["_id"]),
-            "created_at": chat["created_at"],
+            "chat_id": str(chat_id),
+            "created_at": chat["created_at"].isoformat() if chat.get("created_at") else None,
+            "unread_count": unread_count,
             "participant": {
                 "id": str(other_user["_id"]) if other_user else None,
                 "username": other_user.get("username") if other_user else None,
@@ -77,6 +100,7 @@ def get_user_chats():
 # ===============================
 # CHAT MESSAGES (GET / POST)
 # ===============================
+
 @bp.route("/<chat_id>/messages", methods=["GET", "POST"])
 @jwt_required()
 def chat_messages(chat_id):
@@ -91,6 +115,9 @@ def chat_messages(chat_id):
     if not is_chat_participant(chat, g.user):
         return jsonify({"error": "Not authorized for this chat"}), 403
 
+    # ===============================
+    # SEND MESSAGE (REST FALLBACK)
+    # ===============================
     if request.method == "POST":
         data = request.get_json(silent=True) or {}
         content = data.get("content")
@@ -98,29 +125,34 @@ def chat_messages(chat_id):
         if not content:
             return jsonify({"error": "Message content required"}), 400
 
-        mongo.db.messages.insert_one({
+        now = datetime.utcnow()
+
+        message = {
             "chat_id": chat_oid,
             "sender_id": g.user["_id"],
             "sender_role": g.user["role"],
             "content": content,
-            "created_at": datetime.utcnow(),
-        })
+            "created_at": now,
+            "delivered_at": None,
+            "read_at": None,
+        }
 
-        return jsonify({"message": "Message sent"}), 201
+        result = mongo.db.messages.insert_one(message)
+
+        return jsonify({
+            "message": "Message sent",
+            "message_id": str(result.inserted_id),
+            "created_at": now.isoformat()
+        }), 201
+
+    # ===============================
+    # GET MESSAGES
+    # ===============================
 
     messages = mongo.db.messages.find(
         {"chat_id": chat_oid}
     ).sort("created_at", 1)
 
     return jsonify({
-        "messages": [
-            {
-                "id": str(m["_id"]),
-                "sender_id": str(m["sender_id"]),
-                "sender_role": m["sender_role"],
-                "content": m["content"],
-                "created_at": m["created_at"],
-            }
-            for m in messages
-        ]
+        "messages": [serialize_message(m) for m in messages]
     }), 200
