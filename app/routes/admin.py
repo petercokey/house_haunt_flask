@@ -4,6 +4,8 @@ from bson import ObjectId
 from datetime import datetime
 from app.extensions import mongo
 from app.utils.auth_helpers import jwt_required, admin_required
+import os
+from flask import send_from_directory, g
 
 bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 
@@ -266,3 +268,59 @@ def get_pending_houses():
         "total": len(results),
         "houses": results
     }), 200
+
+# ============================================================
+# APPROVE / REJECT KYC
+# ============================================================
+
+@bp.route("/kyc/review/<kyc_id>", methods=["POST"])
+@jwt_required()
+@admin_required
+def review_kyc(kyc_id):
+    data = request.get_json() or {}
+    decision = data.get("decision")
+    note = data.get("note", "")
+
+    if decision not in ("approved", "rejected"):
+        return jsonify({"error": "decision must be approved or rejected"}), 400
+
+    record = mongo.db.kyc.find_one({"_id": ObjectId(kyc_id)})
+    if not record:
+        return jsonify({"error": "KYC record not found"}), 404
+
+    mongo.db.kyc.update_one(
+        {"_id": ObjectId(kyc_id)},
+        {"$set": {
+            "status": decision,
+            "admin_note": note,
+            "reviewed_at": datetime.utcnow(),
+        }}
+    )
+
+    return jsonify({
+        "message": f"KYC has been {decision}"
+    }), 200
+
+    # ============================================================
+# VIEW KYC DOCUMENT
+# ============================================================
+
+@bp.route("/kyc/view/<kyc_id>", methods=["GET"])
+@jwt_required()
+@admin_required
+def view_kyc_document(kyc_id):
+    record = mongo.db.kyc.find_one({"_id": ObjectId(kyc_id)})
+    if not record:
+        return jsonify({"error": "KYC not found"}), 404
+
+    documents = record.get("id_documents", [])
+    if not documents:
+        return jsonify({"error": "No document found"}), 404
+
+    file_path = documents[0]
+
+    if not os.path.exists(file_path):
+        return jsonify({"error": "File not found"}), 404
+
+    folder, filename = os.path.split(file_path)
+    return send_from_directory(folder, filename)
