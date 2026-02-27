@@ -41,6 +41,7 @@ def create_app():
 
     bcrypt.init_app(app)
     mail.init_app(app)
+    print(app.url_map)
 
     socketio.init_app(
         app,
