@@ -308,9 +308,9 @@ def review_kyc(kyc_id):
 
 
 
-@bp.route("/kyc/view/<kyc_id>", methods=["GET"])
+@bp.route("/view/<kyc_id>", methods=["GET"])
 @jwt_required()
-@admin_required
+@role_required("admin")
 def view_kyc_document(kyc_id):
 
     record = mongo.db.kyc.find_one({"_id": ObjectId(kyc_id)})
@@ -321,5 +321,13 @@ def view_kyc_document(kyc_id):
     if not documents:
         return jsonify({"error": "No document found"}), 404
 
-    # Redirect to Cloudinary URL
-    return redirect(documents[0])
+    first_doc = documents[0]
+
+    # 🔥 Handle BOTH formats (string and dict)
+    if isinstance(first_doc, str):
+        return redirect(first_doc)
+
+    if isinstance(first_doc, dict):
+        return redirect(first_doc.get("url"))
+
+    return jsonify({"error": "Invalid document format"}), 500
