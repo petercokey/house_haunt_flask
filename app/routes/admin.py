@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request, redirect
 from bson import ObjectId
 from datetime import datetime
 from app.extensions import mongo
-from app.utils.auth_helpers import jwt_required, admin_required
+from app.utils.auth_helpers import jwt_required, admin_required, role_required 
 import os
 from flask import send_from_directory, g
 
