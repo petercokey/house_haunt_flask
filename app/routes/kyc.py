@@ -155,5 +155,13 @@ def view_kyc_document(kyc_id):
     if not documents:
         return jsonify({"error": "No document found"}), 404
 
-    # Redirect directly to Cloudinary URL
-    return redirect(documents[0]["url"])
+    first_doc = documents[0]
+
+    # 🔥 Handle BOTH formats (string and dict)
+    if isinstance(first_doc, str):
+        return redirect(first_doc)
+
+    if isinstance(first_doc, dict):
+        return redirect(first_doc.get("url"))
+
+    return jsonify({"error": "Invalid document format"}), 500
