@@ -4,6 +4,7 @@ import jwt
 from bson import ObjectId
 from app.extensions import mongo
 from flask import current_app
+from flask_jwt_extended import get_jwt_identity
 
 
 # ===============================
@@ -69,10 +70,12 @@ def role_required(role):
 # ===============================
 # ADMIN REQUIRED
 # ===============================
+
+
 def admin_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        user = getattr(g, "user", None)
+        user = get_jwt_identity()
 
         if not user:
             return jsonify({"error": "Authentication required"}), 401
@@ -83,4 +86,3 @@ def admin_required(fn):
         return fn(*args, **kwargs)
 
     return wrapper
-
