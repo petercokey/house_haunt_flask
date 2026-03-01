@@ -1,11 +1,12 @@
 # app/routes/admin.py
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, redirect
 from bson import ObjectId
 from datetime import datetime
 from app.extensions import mongo
 from app.utils.auth_helpers import jwt_required, admin_required
 import os
 from flask import send_from_directory, g
+
 
 bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 
@@ -305,10 +306,13 @@ def review_kyc(kyc_id):
 # VIEW KYC DOCUMENT
 # ============================================================
 
+
+
 @bp.route("/kyc/view/<kyc_id>", methods=["GET"])
 @jwt_required()
 @admin_required
 def view_kyc_document(kyc_id):
+
     record = mongo.db.kyc.find_one({"_id": ObjectId(kyc_id)})
     if not record:
         return jsonify({"error": "KYC not found"}), 404
@@ -317,10 +321,5 @@ def view_kyc_document(kyc_id):
     if not documents:
         return jsonify({"error": "No document found"}), 404
 
-    file_path = documents[0]
-
-    if not os.path.exists(file_path):
-        return jsonify({"error": "File not found"}), 404
-
-    folder, filename = os.path.split(file_path)
-    return send_from_directory(folder, filename)
+    # Redirect to Cloudinary URL
+    return redirect(documents[0])
