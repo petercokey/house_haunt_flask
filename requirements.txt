@@ -5,8 +5,7 @@ Flask-PyMongo==2.3.0
 Flask-Bcrypt==1.0.1
 Flask-Mail==0.9.1
 Flask-SocketIO==5.3.6
-gevent==24.2.1
-gevent-websocket==0.10.1
+eventlet==0.36.1
 pymongo==4.7.3
 dnspython==2.6.1
 cloudinary==1.40.0

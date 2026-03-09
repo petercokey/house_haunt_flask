@@ -8,3 +8,4 @@ mongo = PyMongo()
 bcrypt = Bcrypt()
 mail = Mail()
 socketio = SocketIO(cors_allowed_origins="*")
+
