@@ -118,6 +118,7 @@ def get_house_details(house_id):
             "id": str(agent["_id"]) if agent else None,
             "name": agent["username"] if agent else "Unknown Agent",
             "email": agent.get("email") if agent else None,
+             
 
             # 🔥 NEW FIELDS
             "rating": round(avg_rating, 1),
