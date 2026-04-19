@@ -73,6 +73,7 @@ def role_required(role):
 
 
 def admin_required(fn):
+    @jwt_required()
     @wraps(fn)
     def wrapper(*args, **kwargs):
         user = get_jwt_identity()
