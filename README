@@ -1,0 +1,104 @@
+# 🏠 HouseHaunt Backend (Flask)
+
+A scalable backend system for a real estate platform, built with Flask.  
+Handles authentication, property listings, transactions, and user workflows.
+
+---
+
+## 🚀 Features
+
+- JWT Authentication & Authorization
+- Role-Based Access Control (Admin, Agent, User)
+- Property listing and management system
+- Transaction and wallet logic
+- KYC verification system
+- Notifications system
+- File upload & static asset handling
+- Review and favorites system
+
+---
+
+## 🛠 Tech Stack
+
+- Python (Flask)
+- MongoDB
+- PostgreSQL (basic)
+- JWT Authentication
+- Docker
+- Nginx
+- Render (deployment)
+
+---
+
+## 📂 Project Structure
+
+```
+/app
+  /routes
+  /models
+  /services
+  /utils
+run.py
+config.py
+```
+
+---
+
+## ⚙️ Setup Instructions
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/petercokey/house_haunt_flask.git
+cd house_haunt_flask
+```
+
+### 2. Create virtual environment
+```bash
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+```
+
+### 3. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Set environment variables
+Create a `.env` file and add:
+```
+SECRET_KEY=your_secret_key
+MONGO_URI=your_mongo_uri
+JWT_SECRET_KEY=your_jwt_secret
+```
+
+### 5. Run the app
+```bash
+python run.py
+```
+
+---
+
+## 🔐 API Overview
+
+| Endpoint | Description |
+|--------|------------|
+| /auth/register | Register user |
+| /auth/login | Login user |
+| /properties | Manage listings |
+| /transactions | Handle transactions |
+| /users | User management |
+
+---
+
+## 🌐 Live API
+
+ https://house-haunt.onrender.com
+
+---
+
+## 📌 Author
+
+**Okezue Chukwuebuka Peter**  
+Backend Engineer (Python)
+
+GitHub: https://github.com/petercokey
