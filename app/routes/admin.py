@@ -327,6 +327,8 @@ def view_kyc_document(kyc_id):
         return redirect(first_doc)
 
     if isinstance(first_doc, dict):
-        return redirect(first_doc.get("url"))
+        return jsonify({
+    "document": first_doc
+})
 
     return jsonify({"error": "Invalid document format"}), 500
