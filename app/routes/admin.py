@@ -314,7 +314,12 @@ def view_kyc_document(kyc_id):
 
     record = mongo.db.kyc.find_one({"_id": ObjectId(kyc_id)})
 
+    if not record:
+        return jsonify({"error": "KYC not found"}), 404
+
+    documents = record.get("id_documents", [])
+
     return jsonify({
-        "found": record is not None,
-        "record": str(record)
+        "documents": documents,
+        "record_id": str(record["_id"])
     }), 200
