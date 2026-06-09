@@ -307,8 +307,7 @@ def review_kyc(kyc_id):
 # ============================================================
 
 
-
-@bp.route("/view/<kyc_id>", methods=["GET"])
+@bp.route("/kyc/view/<kyc_id>", methods=["GET"])
 @jwt_required()
 @role_required("admin")
 def view_kyc_document(kyc_id):
