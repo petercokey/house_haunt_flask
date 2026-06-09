@@ -1,10 +1,8 @@
 from functools import wraps
-from flask import request, jsonify, g
+from flask import request, jsonify, g, current_app
 import jwt
 from bson import ObjectId
 from app.extensions import mongo
-from flask import current_app
-from flask_jwt_extended import get_jwt_identity
 
 
 # ===============================
@@ -27,22 +25,29 @@ def jwt_required():
                     current_app.config["SECRET_KEY"],
                     algorithms=["HS256"]
                 )
+
             except jwt.ExpiredSignatureError:
                 return jsonify({"error": "Token expired"}), 401
+
             except jwt.InvalidTokenError:
                 return jsonify({"error": "Invalid token"}), 401
 
-            user = mongo.db.users.find_one(
-                {"_id": ObjectId(payload["user_id"])}
-            )
+            try:
+                user = mongo.db.users.find_one(
+                    {"_id": ObjectId(payload["user_id"])}
+                )
+            except Exception:
+                return jsonify({"error": "Invalid user"}), 401
 
             if not user:
                 return jsonify({"error": "User not found"}), 401
 
             g.user = user
+
             return fn(*args, **kwargs)
 
         return wrapper
+
     return decorator
 
 
@@ -51,38 +56,47 @@ def jwt_required():
 # ===============================
 def role_required(role):
     def decorator(fn):
+        @jwt_required()
         @wraps(fn)
         def wrapper(*args, **kwargs):
+
             user = getattr(g, "user", None)
 
             if not user:
                 return jsonify({"error": "Authentication required"}), 401
 
             if user.get("role") != role:
-                return jsonify({"error": f"Role '{role}' required"}), 403
+                return jsonify(
+                    {"error": f"Role '{role}' required"}
+                ), 403
 
             return fn(*args, **kwargs)
 
         return wrapper
+
     return decorator
 
 
 # ===============================
 # ADMIN REQUIRED
 # ===============================
-
-
 def admin_required(fn):
+
     @jwt_required()
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        user = get_jwt_identity()
+
+        user = getattr(g, "user", None)
 
         if not user:
-            return jsonify({"error": "Authentication required"}), 401
+            return jsonify(
+                {"error": "Authentication required"}
+            ), 401
 
         if user.get("role") != "admin":
-            return jsonify({"error": "Admin access required"}), 403
+            return jsonify(
+                {"error": "Admin access required"}
+            ), 403
 
         return fn(*args, **kwargs)
 
