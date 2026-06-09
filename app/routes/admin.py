@@ -313,22 +313,8 @@ def review_kyc(kyc_id):
 def view_kyc_document(kyc_id):
 
     record = mongo.db.kyc.find_one({"_id": ObjectId(kyc_id)})
-    if not record:
-        return jsonify({"error": "KYC not found"}), 404
 
-    documents = record.get("id_documents", [])
-    if not documents:
-        return jsonify({"error": "No document found"}), 404
-
-    first_doc = documents[0]
-
-    # 🔥 Handle BOTH formats (string and dict)
-    if isinstance(first_doc, str):
-        return redirect(first_doc)
-
-    if isinstance(first_doc, dict):
-        return jsonify({
-    "document": first_doc
-})
-
-    return jsonify({"error": "Invalid document format"}), 500
+    return jsonify({
+        "found": record is not None,
+        "record": str(record)
+    }), 200
