@@ -319,7 +319,15 @@ def view_kyc_document(kyc_id):
 
     documents = record.get("id_documents", [])
 
-    return jsonify({
-        "documents": documents,
-        "record_id": str(record["_id"])
-    }), 200
+    if not documents:
+        return jsonify({"error": "No document found"}), 404
+
+    first_doc = documents[0]
+
+    if isinstance(first_doc, str):
+        return redirect(first_doc)
+
+    if isinstance(first_doc, dict):
+        return redirect(first_doc.get("url"))
+
+    return jsonify({"error": "Invalid document format"}), 500
